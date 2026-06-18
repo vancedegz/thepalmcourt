@@ -1,0 +1,191 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         UserRole @default(customer)
+  status       UserStatus @default(active)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  bookings Booking[]
+  payments Payment[]
+
+  @@map("users")
+}
+
+model BusinessSettings {
+  id                  Int      @id @default(1)
+  name                String
+  logoUrl             String?
+  email               String
+  phone               String
+  address             String
+  openingTime         String   // "06:00"
+  closingTime         String   // "22:00"
+  defaultPricePerHour Int      // 250
+  bookingRules        String?
+  paymentInstructions String?
+  bankDetails         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([id])
+  @@map("business_settings")
+}
+
+model PricingTier {
+  id            Int      @id @default(autoincrement())
+  name          String
+  startTime     String   // "06:00"
+  endTime       String   // "12:00"
+  pricePerHour  Int      // 200
+  isActive      Boolean  @default(true)
+  daysOfWeek    String[] // ["monday", "tuesday", ...]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("pricing_tiers")
+}
+
+model Court {
+  id          String      @id @default(cuid())
+  name        String
+  number      Int
+  description String?
+  status      CourtStatus @default(active)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  bookings Booking[]
+
+  @@map("courts")
+}
+
+model Booking {
+  id             String     @id @default(cuid())
+  referenceNumber String    @unique
+  userId         String
+  courtId        String
+  date           DateTime   // Date only
+  startTime      String     // "14:00"
+  endTime        String     // "15:00"
+  durationHours  Int        // 1
+  totalAmount    Int        // 250
+  priceBreakdown Json       // [{"hour": 1, "price": 250, "tier": "Afternoon"}]
+  status         BookingStatus @default(pending)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  court    Court     @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@map("bookings")
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  bookingId    String
+  userId       String
+  amount       Int
+  screenshotUrl String?
+  status       PaymentStatus @default(pending)
+  adminNotes   String?
+  verifiedBy   String?
+  verifiedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+enum UserRole {
+  customer
+  staff
+  admin
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum CourtStatus {
+  active
+  maintenance
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+enum PaymentStatus {
+  pending
+  verified
+  rejected
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  price       Int
+  type        ProductType @default(sale)
+  imageUrl    String?
+  stock       Int         @default(0)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("products")
+}
+
+enum ProductType {
+  sale
+  rent
+}
+
+model Sale {
+  id            String   @id @default(cuid())
+  productId     String
+  quantity      Int      @default(1)
+  unitPrice     Int
+  totalPrice    Int
+  customerName  String
+  customerPhone String?
+  notes         String?
+  status        SaleStatus @default(completed)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("sales")
+}
+
+enum SaleStatus {
+  completed
+  cancelled
+}
