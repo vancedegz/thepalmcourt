@@ -3,8 +3,10 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
+import { requireAdmin, requireStaff } from "@/lib/authz"
 
 export async function searchUsers(query: string) {
+  await requireStaff()
   if (!query.trim() || query.trim().length < 2) return []
   const q = query.trim()
   const users = await prisma.user.findMany({
@@ -31,6 +33,7 @@ export async function searchUsers(query: string) {
 }
 
 export async function getAllUsers() {
+  await requireAdmin()
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
     select: {
@@ -58,6 +61,7 @@ export async function createUser(data: {
   phone?: string
   role: "customer" | "staff" | "admin"
 }) {
+  await requireAdmin()
   const existingUser = await prisma.user.findFirst({
     where: {
       OR: [{ username: data.username }, { email: data.email }],
@@ -96,6 +100,7 @@ export async function createUser(data: {
 }
 
 export async function updateUserRole(userId: string, role: "customer" | "staff" | "admin") {
+  await requireAdmin()
   const user = await prisma.user.update({
     where: { id: userId },
     data: { role },
@@ -111,6 +116,7 @@ export async function updateUserRole(userId: string, role: "customer" | "staff" 
 }
 
 export async function toggleUserStatus(userId: string) {
+  await requireAdmin()
   const currentUser = await prisma.user.findUnique({
     where: { id: userId },
     select: { status: true },
@@ -137,6 +143,7 @@ export async function toggleUserStatus(userId: string) {
 }
 
 export async function resetUserPassword(userId: string, newPassword: string) {
+  await requireAdmin()
   const passwordHash = await bcrypt.hash(newPassword, 10)
 
   await prisma.user.update({
