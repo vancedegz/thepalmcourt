@@ -1,9 +1,54 @@
 "use server"
 
-import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { format } from "date-fns"
+import { requireUser, requireStaff } from "@/lib/authz"
+import { calculatePrice } from "./settings"
+
+type PriceBreakdownItem = { hour: string; price: number; tier: string }
+
+type BookingInput = {
+  courtId: string
+  date: Date
+  startTime: string
+  endTime: string
+}
+
+function generateReferenceNumber() {
+  const dateStr = format(new Date(), "yyyyMMdd")
+  const randomNum = Math.floor(1000 + Math.random() * 9000)
+  return `PB-${dateStr}-${randomNum}`
+}
+
+async function priceBooking(input: BookingInput) {
+  const [startHour] = input.startTime.split(":").map(Number)
+  const [endHour] = input.endTime.split(":").map(Number)
+  const durationHours = endHour - startHour
+  if (!Number.isFinite(durationHours) || durationHours <= 0) {
+    throw new Error("Invalid time range")
+  }
+  const { totalAmount, priceBreakdown } = await calculatePrice(
+    input.startTime,
+    input.endTime,
+    input.date
+  )
+  return { durationHours, totalAmount, priceBreakdown }
+}
+
+async function assertSlotAvailable(input: BookingInput) {
+  const existing = await prisma.booking.findMany({
+    where: { courtId: input.courtId, date: input.date, status: { not: "cancelled" } },
+    select: { startTime: true, endTime: true },
+  })
+  // Zero-padded "HH:00" strings compare correctly lexicographically.
+  const overlaps = existing.some(
+    (b) => input.startTime < b.endTime && input.endTime > b.startTime
+  )
+  if (overlaps) {
+    throw new Error("Selected time slot is no longer available")
+  }
+}
 
 export async function createBooking(data: {
   courtId: string
@@ -12,40 +57,33 @@ export async function createBooking(data: {
   endTime: string
   durationHours: number
   totalAmount: number
-  priceBreakdown: any[]
+  priceBreakdown: PriceBreakdownItem[]
 }) {
-  const session = await auth()
-  if (!session?.user) {
-    throw new Error("Unauthorized")
-  }
+  const session = await requireUser()
 
-  // Generate reference number
-  const dateStr = format(new Date(), "yyyyMMdd")
-  const randomNum = Math.floor(1000 + Math.random() * 9000)
-  const referenceNumber = `PB-${dateStr}-${randomNum}`
+  const priced = await priceBooking(data)
+  await assertSlotAvailable(data)
 
-  // Create booking
   const booking = await prisma.booking.create({
     data: {
-      referenceNumber,
+      referenceNumber: generateReferenceNumber(),
       userId: session.user.id,
       courtId: data.courtId,
       date: data.date,
       startTime: data.startTime,
       endTime: data.endTime,
-      durationHours: data.durationHours,
-      totalAmount: data.totalAmount,
-      priceBreakdown: data.priceBreakdown,
+      durationHours: priced.durationHours,
+      totalAmount: priced.totalAmount,
+      priceBreakdown: priced.priceBreakdown,
       status: "pending",
     },
   })
 
-  // Create payment record
   await prisma.payment.create({
     data: {
       bookingId: booking.id,
       userId: session.user.id,
-      amount: data.totalAmount,
+      amount: priced.totalAmount,
       status: "pending",
     },
   })
@@ -62,32 +100,28 @@ export async function createMultipleBookings(
     endTime: string
     durationHours: number
     totalAmount: number
-    priceBreakdown: any[]
+    priceBreakdown: PriceBreakdownItem[]
   }[]
 ) {
-  const session = await auth()
-  if (!session?.user) {
-    throw new Error("Unauthorized")
-  }
+  const session = await requireUser()
 
   const createdBookings = []
 
   for (const data of bookings) {
-    const dateStr = format(new Date(), "yyyyMMdd")
-    const randomNum = Math.floor(1000 + Math.random() * 9000)
-    const referenceNumber = `PB-${dateStr}-${randomNum}`
+    const priced = await priceBooking(data)
+    await assertSlotAvailable(data)
 
     const booking = await prisma.booking.create({
       data: {
-        referenceNumber,
+        referenceNumber: generateReferenceNumber(),
         userId: session.user.id,
         courtId: data.courtId,
         date: data.date,
         startTime: data.startTime,
         endTime: data.endTime,
-        durationHours: data.durationHours,
-        totalAmount: data.totalAmount,
-        priceBreakdown: data.priceBreakdown,
+        durationHours: priced.durationHours,
+        totalAmount: priced.totalAmount,
+        priceBreakdown: priced.priceBreakdown,
         status: "pending",
       },
     })
@@ -96,7 +130,7 @@ export async function createMultipleBookings(
       data: {
         bookingId: booking.id,
         userId: session.user.id,
-        amount: data.totalAmount,
+        amount: priced.totalAmount,
         status: "pending",
       },
     })
@@ -109,15 +143,7 @@ export async function createMultipleBookings(
 }
 
 export async function cancelBooking(bookingId: string) {
-  const session = await auth()
-  if (!session?.user) {
-    throw new Error("Unauthorized")
-  }
-
-  // Only admin/staff can cancel bookings
-  if (session.user.role !== "admin" && session.user.role !== "staff") {
-    throw new Error("Only administrators can cancel bookings")
-  }
+  await requireStaff()
 
   await prisma.booking.update({
     where: { id: bookingId },
@@ -129,10 +155,7 @@ export async function cancelBooking(bookingId: string) {
 }
 
 export async function getMyBookings() {
-  const session = await auth()
-  if (!session?.user) {
-    throw new Error("Unauthorized")
-  }
+  const session = await requireUser()
 
   const bookings = await prisma.booking.findMany({
     where: { userId: session.user.id },
@@ -147,14 +170,7 @@ export async function getMyBookings() {
 }
 
 export async function getAllBookings() {
-  const session = await auth()
-  if (!session?.user) {
-    throw new Error("Unauthorized")
-  }
-
-  if (session.user.role !== "admin" && session.user.role !== "staff") {
-    throw new Error("Unauthorized")
-  }
+  await requireStaff()
 
   const bookings = await prisma.booking.findMany({
     include: {
@@ -199,15 +215,15 @@ export async function createAdminBooking(data: {
   endTime: string
   durationHours: number
   totalAmount: number
-  priceBreakdown: any[]
+  priceBreakdown: PriceBreakdownItem[]
   userId?: string
   guestName?: string
   guestPhone?: string
 }) {
-  const session = await auth()
-  if (!session?.user || (session.user.role !== "admin" && session.user.role !== "staff")) {
-    throw new Error("Unauthorized")
-  }
+  await requireStaff()
+
+  const priced = await priceBooking(data)
+  await assertSlotAvailable(data)
 
   let userId = data.userId
 
@@ -233,22 +249,17 @@ export async function createAdminBooking(data: {
     throw new Error("Either select an existing user or enter a guest name")
   }
 
-  // Generate reference number
-  const dateStr = format(new Date(), "yyyyMMdd")
-  const randomNum = Math.floor(1000 + Math.random() * 9000)
-  const referenceNumber = `PB-${dateStr}-${randomNum}`
-
   const booking = await prisma.booking.create({
     data: {
-      referenceNumber,
+      referenceNumber: generateReferenceNumber(),
       userId,
       courtId: data.courtId,
       date: data.date,
       startTime: data.startTime,
       endTime: data.endTime,
-      durationHours: data.durationHours,
-      totalAmount: data.totalAmount,
-      priceBreakdown: data.priceBreakdown,
+      durationHours: priced.durationHours,
+      totalAmount: priced.totalAmount,
+      priceBreakdown: priced.priceBreakdown,
       status: "pending",
     },
   })
@@ -257,7 +268,7 @@ export async function createAdminBooking(data: {
     data: {
       bookingId: booking.id,
       userId,
-      amount: data.totalAmount,
+      amount: priced.totalAmount,
       status: "pending",
     },
   })

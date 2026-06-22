@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { requireStaff } from "@/lib/authz"
 
 export async function getAllSales() {
+  await requireStaff()
   const sales = await prisma.sale.findMany({
     orderBy: { createdAt: "desc" },
   })
@@ -18,6 +20,7 @@ export async function createSale(data: {
   customerPhone?: string
   notes?: string
 }) {
+  await requireStaff()
   const totalPrice = data.unitPrice * data.quantity
 
   // Deduct stock
@@ -57,6 +60,7 @@ export async function createSale(data: {
 }
 
 export async function cancelSale(saleId: string) {
+  await requireStaff()
   const sale = await prisma.sale.findUnique({
     where: { id: saleId },
   })
@@ -95,6 +99,7 @@ export async function createBatchSales(
   customerPhone?: string,
   notes?: string
 ) {
+  await requireStaff()
   if (!items.length) throw new Error("Cart is empty")
   if (!customerName.trim()) throw new Error("Customer name is required")
 
@@ -136,6 +141,7 @@ export async function createBatchSales(
 }
 
 export async function getTodaySales() {
+  await requireStaff()
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)
   const endOfDay = new Date()

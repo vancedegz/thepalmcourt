@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { requireStaff } from "@/lib/authz"
 
 export async function getAllProducts() {
+  await requireStaff()
   const products = await prisma.product.findMany({
     orderBy: { createdAt: "desc" },
   })
@@ -18,6 +20,7 @@ export async function createProduct(data: {
   imageUrl?: string
   stock: number
 }) {
+  await requireStaff()
   const product = await prisma.product.create({
     data: {
       name: data.name,
@@ -44,6 +47,7 @@ export async function updateProduct(
     isActive?: boolean
   }
 ) {
+  await requireStaff()
   const product = await prisma.product.update({
     where: { id: productId },
     data: {
@@ -61,6 +65,7 @@ export async function updateProduct(
 }
 
 export async function deleteProduct(productId: string) {
+  await requireStaff()
   await prisma.product.delete({
     where: { id: productId },
   })
@@ -69,6 +74,7 @@ export async function deleteProduct(productId: string) {
 }
 
 export async function toggleProductStatus(productId: string) {
+  await requireStaff()
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: { isActive: true },
