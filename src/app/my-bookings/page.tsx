@@ -5,29 +5,33 @@ import CustomerLayout from "@/components/layout/CustomerLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { getMyBookings } from "@/app/actions/bookings"
 import { uploadPaymentScreenshot } from "@/app/actions/payments"
 import { format } from "date-fns"
+import type { Booking, Court, Payment } from "@prisma/client"
+
+type PriceBreakdownItem = { hour: string; price: number; tier: string }
+
+type BookingWithDetails = Booking & {
+  court: Court
+  payments: Payment[]
+  priceBreakdown: PriceBreakdownItem[]
+}
 import { Calendar, Clock, MapPin, Upload, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { UploadButton } from "@/lib/uploadthing"
 
 export default function MyBookingsPage() {
-  const [bookings, setBookings] = useState<any[]>([])
+  const [bookings, setBookings] = useState<BookingWithDetails[]>([])
   const [loading, setLoading] = useState(true)
-  const [uploadingFor, setUploadingFor] = useState<string | null>(null)
-
-  useEffect(() => {
-    loadBookings()
-  }, [])
 
   const loadBookings = async () => {
     try {
       const data = await getMyBookings()
-      setBookings(data)
+      setBookings(data as BookingWithDetails[])
     } catch (err) {
       console.error("Failed to load bookings:", err)
     } finally {
@@ -35,10 +39,16 @@ export default function MyBookingsPage() {
     }
   }
 
+  useEffect(() => {
+    async function run() {
+      await loadBookings()
+    }
+    run()
+  }, [])
+
   const handleUploadComplete = async (bookingId: string, url: string) => {
     try {
       await uploadPaymentScreenshot(bookingId, url)
-      setUploadingFor(null)
       loadBookings()
     } catch (err) {
       console.error("Failed to save screenshot:", err)
@@ -163,7 +173,7 @@ export default function MyBookingsPage() {
                       <div>
                         <Label className="text-sm font-medium">Payment Status</Label>
                         <div className="mt-1">
-                          {booking.payments.map((payment: any) => (
+                          {booking.payments.map((payment) => (
                             <div key={payment.id} className="space-y-2">
                               {getPaymentStatusBadge(payment.status)}
                               {payment.status === "pending" && !payment.screenshotUrl && (
@@ -219,7 +229,7 @@ export default function MyBookingsPage() {
                       <div>
                         <Label className="text-sm font-medium">Price Breakdown</Label>
                         <div className="mt-1 space-y-1">
-                          {(booking.priceBreakdown as any[]).map((item: any, index: number) => (
+                          {booking.priceBreakdown.map((item, index) => (
                             <div key={index} className="flex justify-between text-xs">
                               <span>{item.hour} - {item.tier}</span>
                               <span>₱{item.price}</span>

@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { businessSettingsSchema, pricingTierSchema } from "@/lib/validation"
 
 export async function getBusinessSettings() {
   const settings = await prisma.businessSettings.findUnique({
@@ -33,10 +34,15 @@ export async function updateBusinessSettings(data: {
     throw new Error("Only administrators can update settings")
   }
 
+  const parsed = businessSettingsSchema.safeParse(data)
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid settings data")
+  }
+
   const settings = await prisma.businessSettings.upsert({
     where: { id: 1 },
-    update: data,
-    create: { id: 1, ...data },
+    update: parsed.data,
+    create: { id: 1, ...parsed.data },
   })
 
   revalidatePath("/admin/settings")
@@ -68,30 +74,24 @@ export async function upsertPricingTier(data: {
     throw new Error("Only administrators can manage pricing")
   }
 
-  if (data.id) {
+  const parsed = pricingTierSchema.safeParse(data)
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid pricing tier data")
+  }
+
+  if (parsed.data.id) {
+    const { id, ...updateData } = parsed.data
     const tier = await prisma.pricingTier.update({
-      where: { id: data.id },
-      data: {
-        name: data.name,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        pricePerHour: data.pricePerHour,
-        isActive: data.isActive,
-        daysOfWeek: data.daysOfWeek,
-      },
+      where: { id },
+      data: updateData,
     })
     revalidatePath("/admin/pricing")
     return tier
   } else {
+    const { id: _id, ...createData } = parsed.data
+    void _id
     const tier = await prisma.pricingTier.create({
-      data: {
-        name: data.name,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        pricePerHour: data.pricePerHour,
-        isActive: data.isActive,
-        daysOfWeek: data.daysOfWeek,
-      },
+      data: createData,
     })
     revalidatePath("/admin/pricing")
     return tier

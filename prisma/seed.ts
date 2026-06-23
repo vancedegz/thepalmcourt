@@ -17,7 +17,7 @@ async function main() {
   const staffPassword = await bcrypt.hash('staff123', 10)
   const customerPassword = await bcrypt.hash('customer123', 10)
 
-  const admin = await prisma.user.create({
+  await prisma.user.create({
     data: {
       username: 'admin',
       email: 'admin@thepalmcourt.com',
@@ -29,7 +29,7 @@ async function main() {
     },
   })
 
-  const staff = await prisma.user.create({
+  await prisma.user.create({
     data: {
       username: 'staff',
       email: 'staff@thepalmcourt.com',
@@ -41,7 +41,7 @@ async function main() {
     },
   })
 
-  const customer = await prisma.user.create({
+  await prisma.user.create({
     data: {
       username: 'customer',
       email: 'customer@example.com',
@@ -64,6 +64,7 @@ async function main() {
       address: 'General Santos, Philippines',
       openingTime: '06:00',
       closingTime: '22:00',
+      timezone: 'Asia/Manila',
       defaultPricePerHour: 250,
       bookingRules: 'Bookings must be made at least 1 hour in advance. Cancellations must be made at least 2 hours before the booking time. Walk-ins welcome based on availability.',
       paymentInstructions: 'Please upload a screenshot of your payment confirmation after booking. Payments will be verified within 24 hours. GCash and bank transfer accepted.',

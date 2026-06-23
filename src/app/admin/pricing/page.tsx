@@ -12,14 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getPricingTiers, upsertPricingTier, deletePricingTier } from "@/app/actions/settings"
 import { cn } from "@/lib/utils"
 import { Plus, Edit, Trash2, Banknote, Clock, Calendar } from "lucide-react"
+import type { PricingTier } from "@prisma/client"
 
 const daysOfWeek = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 export default function AdminPricingPage() {
-  const [tiers, setTiers] = useState<any[]>([])
+  const [tiers, setTiers] = useState<PricingTier[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingTier, setEditingTier] = useState<any>(null)
+  const [editingTier, setEditingTier] = useState<PricingTier | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     startTime: "",
@@ -28,10 +29,6 @@ export default function AdminPricingPage() {
     isActive: true,
     daysOfWeek: [] as string[],
   })
-
-  useEffect(() => {
-    loadTiers()
-  }, [])
 
   const loadTiers = async () => {
     try {
@@ -43,6 +40,13 @@ export default function AdminPricingPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function run() {
+      await loadTiers()
+    }
+    run()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,7 +63,7 @@ export default function AdminPricingPage() {
     }
   }
 
-  const handleEdit = (tier: any) => {
+  const handleEdit = (tier: PricingTier) => {
     setEditingTier(tier)
     setFormData({
       name: tier.name,

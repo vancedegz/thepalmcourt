@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import AdminLayout from "@/components/layout/AdminLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,6 +11,7 @@ import { getAllProducts } from "@/app/actions/products"
 import { getAllSales, cancelSale } from "@/app/actions/sales"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import type { Sale, Product } from "@prisma/client"
 import {
   ArrowLeft,
   Receipt,
@@ -25,14 +27,10 @@ import { Input } from "@/components/ui/input"
 
 export default function SalesHistoryPage() {
   const router = useRouter()
-  const [sales, setSales] = useState<any[]>([])
-  const [products, setProducts] = useState<Record<string, any>>({})
+  const [sales, setSales] = useState<Sale[]>([])
+  const [products, setProducts] = useState<Record<string, Product>>({})
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-
-  useEffect(() => {
-    loadData()
-  }, [])
 
   const loadData = async () => {
     try {
@@ -41,8 +39,8 @@ export default function SalesHistoryPage() {
         getAllProducts(),
       ])
       setSales(salesData)
-      const productMap: Record<string, any> = {}
-      productsData.forEach((p: any) => {
+      const productMap: Record<string, Product> = {}
+      productsData.forEach((p) => {
         productMap[p.id] = p
       })
       setProducts(productMap)
@@ -52,6 +50,13 @@ export default function SalesHistoryPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function run() {
+      await loadData()
+    }
+    run()
+  }, [])
 
   const handleCancel = async (saleId: string) => {
     if (!confirm("Cancel this sale? Stock will be restored.")) return
@@ -189,10 +194,12 @@ export default function SalesHistoryPage() {
                       {/* Left: Product & Customer */}
                       <div className="flex items-start gap-3 flex-1">
                         {product?.imageUrl ? (
-                          <img
+                          <Image
                             src={product.imageUrl}
                             alt={product?.name || "Product"}
-                            className="w-12 h-12 rounded-lg object-cover border flex-shrink-0"
+                            width={48}
+                            height={48}
+                            className="rounded-lg object-cover border flex-shrink-0"
                           />
                         ) : (
                           <div className="w-12 h-12 rounded-lg bg-gray-100 border flex items-center justify-center flex-shrink-0">

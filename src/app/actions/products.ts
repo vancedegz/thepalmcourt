@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { requireStaff } from "@/lib/authz"
+import { productSchema } from "@/lib/validation"
 
 export async function getAllProducts() {
   await requireStaff()
@@ -21,14 +22,18 @@ export async function createProduct(data: {
   stock: number
 }) {
   await requireStaff()
+  const parsed = productSchema.safeParse(data)
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid product data")
+  }
   const product = await prisma.product.create({
     data: {
-      name: data.name,
-      description: data.description || null,
-      price: data.price,
-      type: data.type,
-      imageUrl: data.imageUrl || null,
-      stock: data.stock,
+      name: parsed.data.name,
+      description: parsed.data.description || null,
+      price: parsed.data.price,
+      type: parsed.data.type,
+      imageUrl: parsed.data.imageUrl || null,
+      stock: parsed.data.stock ?? 0,
     },
   })
   revalidatePath("/admin/pos")
@@ -48,15 +53,19 @@ export async function updateProduct(
   }
 ) {
   await requireStaff()
+  const parsed = productSchema.partial().safeParse(data)
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid product data")
+  }
   const product = await prisma.product.update({
     where: { id: productId },
     data: {
-      name: data.name,
-      description: data.description,
-      price: data.price,
-      type: data.type,
-      imageUrl: data.imageUrl,
-      stock: data.stock,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      price: parsed.data.price,
+      type: parsed.data.type,
+      imageUrl: parsed.data.imageUrl,
+      stock: parsed.data.stock,
       isActive: data.isActive,
     },
   })

@@ -8,10 +8,21 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getProfile, updateProfile, changePassword } from "@/app/actions/profile"
-import { User, Lock, Save, Shield, AtSign, Phone } from "lucide-react"
+import { User, Lock, Save, Shield } from "lucide-react"
+import type { UserRole } from "@prisma/client"
+
+type ProfileUser = {
+  id: string
+  username: string
+  email: string
+  firstName: string
+  lastName: string
+  phone: string | null
+  role: UserRole
+}
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<ProfileUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
@@ -30,10 +41,6 @@ export default function ProfilePage() {
     confirmPassword: "",
   })
 
-  useEffect(() => {
-    loadProfile()
-  }, [])
-
   const loadProfile = async () => {
     try {
       const data = await getProfile()
@@ -44,12 +51,19 @@ export default function ProfilePage() {
         email: data?.email || "",
         phone: data?.phone || "",
       })
-    } catch (err) {
+    } catch {
       setError("Failed to load profile")
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function run() {
+      await loadProfile()
+    }
+    run()
+  }, [])
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,8 +75,8 @@ export default function ProfilePage() {
       await updateProfile(formData)
       setMessage("Profile updated successfully")
       loadProfile()
-    } catch (err: any) {
-      setError(err.message || "Failed to update profile")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update profile")
     } finally {
       setSaving(false)
     }
@@ -93,8 +107,8 @@ export default function ProfilePage() {
         newPassword: "",
         confirmPassword: "",
       })
-    } catch (err: any) {
-      setError(err.message || "Failed to change password")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to change password")
     } finally {
       setSaving(false)
     }

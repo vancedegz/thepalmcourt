@@ -17,24 +17,21 @@ export default function AdminDashboard() {
   })
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadStats()
-  }, [])
-
   const loadStats = async () => {
     try {
-      const [bookings, payments, courts] = await Promise.all([
-        getAllBookings(),
+      const [bookingsData, payments, courts] = await Promise.all([
+        getAllBookings(1, 1000),
         getPendingPayments(),
         getCourts(),
       ])
+      const bookings = bookingsData.bookings
 
       const confirmedBookings = bookings.filter((b) => b.status === "confirmed")
       const confirmedRevenue = confirmedBookings.reduce((sum, b) => sum + b.totalAmount, 0)
       const activeCourts = courts.filter((c) => c.status === "active").length
 
       setStats({
-        totalBookings: bookings.length,
+        totalBookings: bookingsData.total,
         pendingPayments: payments.length,
         confirmedRevenue,
         activeCourts,
@@ -45,6 +42,13 @@ export default function AdminDashboard() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function run() {
+      await loadStats()
+    }
+    run()
+  }, [])
 
   if (loading) {
     return (

@@ -8,21 +8,36 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { getAllBookings, cancelBooking } from "@/app/actions/bookings"
 import { format } from "date-fns"
-import { XCircle, CheckCircle, AlertCircle, Calendar, Search, Filter, Plus } from "lucide-react"
+import { XCircle, CheckCircle, AlertCircle, Calendar, Plus } from "lucide-react"
 import Link from "next/link"
+import type { Booking, Court, Payment } from "@prisma/client"
+
+type BookingWithDetails = Booking & {
+  court: Court
+  user: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    phone: string | null
+  }
+  payments: Payment[]
+}
 
 export default function AdminBookingsPage() {
-  const [bookings, setBookings] = useState<any[]>([])
+  const [bookings, setBookings] = useState<BookingWithDetails[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
-  useEffect(() => {
-    loadBookings()
-  }, [])
-
-  const loadBookings = async () => {
+  const loadBookings = async (p: number) => {
     try {
-      const data = await getAllBookings()
-      setBookings(data)
+      const data = await getAllBookings(p)
+      setBookings(data.bookings as BookingWithDetails[])
+      setTotalPages(data.totalPages)
+      setTotal(data.total)
+      setPage(data.page)
     } catch (err) {
       console.error("Failed to load bookings:", err)
     } finally {
@@ -30,11 +45,18 @@ export default function AdminBookingsPage() {
     }
   }
 
+  useEffect(() => {
+    async function run() {
+      await loadBookings(1)
+    }
+    run()
+  }, [])
+
   const handleCancel = async (bookingId: string) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return
     try {
       await cancelBooking(bookingId)
-      loadBookings()
+      loadBookings(page)
     } catch (err) {
       console.error("Failed to cancel booking:", err)
     }
@@ -80,7 +102,7 @@ export default function AdminBookingsPage() {
             </Link>
             <div className="flex items-center gap-2 px-4 py-2 bg-primary/5 rounded-lg border border-primary/10">
               <Calendar className="h-4 w-4 text-[#16a34a]" />
-              <span className="text-sm font-medium text-[#0a7c32]">{bookings.length} Total</span>
+              <span className="text-sm font-medium text-[#0a7c32]">{total} Total</span>
             </div>
           </div>
         </div>
@@ -134,6 +156,32 @@ export default function AdminBookingsPage() {
             </Table>
           </CardContent>
         </Card>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => loadBookings(page - 1)}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => loadBookings(page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   )

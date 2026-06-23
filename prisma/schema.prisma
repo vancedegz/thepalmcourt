@@ -39,8 +39,9 @@ model BusinessSettings {
   email               String
   phone               String
   address             String
-  openingTime         String   // "06:00"
-  closingTime         String   // "22:00"
+  openingTime         String   // "06:00" - interpreted in `timezone`
+  closingTime         String   // "22:00" - interpreted in `timezone`
+  timezone            String   @default("Asia/Manila") // IANA tz, e.g. "Asia/Manila"
   defaultPricePerHour Int      // 250
   bookingRules        String?
   paymentInstructions String?
@@ -99,6 +100,9 @@ model Booking {
   court    Court     @relation(fields: [courtId], references: [id], onDelete: Cascade)
   payments Payment[]
 
+  @@index([courtId, date, status])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
   @@map("bookings")
 }
 
@@ -118,6 +122,9 @@ model Payment {
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([status, createdAt])
+  @@index([bookingId])
+  @@index([userId])
   @@map("payments")
 }
 
@@ -161,6 +168,9 @@ model Product {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  sales Sale[]
+
+  @@index([isActive, createdAt])
   @@map("products")
 }
 
@@ -182,6 +192,11 @@ model Sale {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([productId, createdAt])
+  @@index([status, createdAt])
+  @@index([createdAt])
   @@map("sales")
 }
 

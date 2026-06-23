@@ -12,6 +12,20 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getAllUsers, createUser, updateUserRole, toggleUserStatus, resetUserPassword } from "@/app/actions/users"
 import { format } from "date-fns"
+import type { UserRole, UserStatus } from "@prisma/client"
+
+type UserListItem = {
+  id: string
+  username: string
+  email: string
+  firstName: string
+  lastName: string
+  phone: string | null
+  role: UserRole
+  status: UserStatus
+  createdAt: Date
+  updatedAt: Date
+}
 import {
   Users,
   Plus,
@@ -27,15 +41,17 @@ import {
 } from "lucide-react"
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<any[]>([])
+  const [users, setUsers] = useState<UserListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [resetPasswordDialog, setResetPasswordDialog] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [selectedUser, setSelectedUser] = useState<UserListItem | null>(null)
   const [newPassword, setNewPassword] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
 
   const [formData, setFormData] = useState({
     username: "",
@@ -47,20 +63,25 @@ export default function AdminUsersPage() {
     role: "customer" as "customer" | "staff" | "admin",
   })
 
-  useEffect(() => {
-    loadUsers()
-  }, [])
-
-  const loadUsers = async () => {
+  const loadUsers = async (p: number) => {
     try {
-      const data = await getAllUsers()
-      setUsers(data)
+      const data = await getAllUsers(p)
+      setUsers(data.users)
+      setTotalPages(data.totalPages)
+      setPage(data.page)
     } catch (err) {
       console.error("Failed to load users:", err)
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function run() {
+      await loadUsers(1)
+    }
+    run()
+  }, [])
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -79,16 +100,16 @@ export default function AdminUsersPage() {
         role: "customer",
       })
       setDialogOpen(false)
-      loadUsers()
-    } catch (err: any) {
-      setError(err.message || "Failed to create user")
+      loadUsers(page)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create user")
     }
   }
 
   const handleRoleChange = async (userId: string, role: "customer" | "staff" | "admin") => {
     try {
       await updateUserRole(userId, role)
-      loadUsers()
+      loadUsers(page)
     } catch (err) {
       console.error("Failed to update role:", err)
     }
@@ -97,7 +118,7 @@ export default function AdminUsersPage() {
   const handleToggleStatus = async (userId: string) => {
     try {
       await toggleUserStatus(userId)
-      loadUsers()
+      loadUsers(page)
     } catch (err) {
       console.error("Failed to toggle status:", err)
     }
@@ -112,8 +133,8 @@ export default function AdminUsersPage() {
       setNewPassword("")
       setSelectedUser(null)
       setSuccess("Password reset successfully")
-      loadUsers()
-    } catch (err) {
+      loadUsers(page)
+    } catch {
       setError("Failed to reset password")
     }
   }
@@ -414,6 +435,32 @@ export default function AdminUsersPage() {
             </Table>
           </CardContent>
         </Card>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => loadUsers(page - 1)}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => loadUsers(page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Reset Password Dialog */}
         <Dialog open={resetPasswordDialog} onOpenChange={setResetPasswordDialog}>

@@ -1,22 +1,21 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import CustomerLayout from "@/components/layout/CustomerLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar } from "@/components/ui/calendar"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { getActiveCourts } from "@/app/actions/courts"
 import { getAvailableSlots } from "@/app/actions/bookings"
 import { calculatePrice } from "@/app/actions/settings"
-import { createBooking, createMultipleBookings } from "@/app/actions/bookings"
+import { createMultipleBookings } from "@/app/actions/bookings"
 import { format, addDays, isSameDay } from "date-fns"
-import { Calendar as CalendarIcon, Check, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { Calendar as CalendarIcon, Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { Court } from "@prisma/client"
 
 function DateStrip({
   selectedDate,
@@ -70,7 +69,7 @@ interface CourtBookings {
 
 export default function BookPage() {
   const router = useRouter()
-  const [courts, setCourts] = useState<any[]>([])
+  const [courts, setCourts] = useState<Court[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -79,30 +78,23 @@ export default function BookPage() {
   const [courtBookings, setCourtBookings] = useState<CourtBookings>({})
   const [selectedSlots, setSelectedSlots] = useState<{ courtId: string; time: string }[]>([])
   const [showSummary, setShowSummary] = useState(false)
-  const [priceInfo, setPriceInfo] = useState<any>(null)
+  const [priceInfo, setPriceInfo] = useState<
+    | { courtId: string; courtName: string; startTime: string; endTime: string; durationHours: number; totalAmount: number; priceBreakdown: { hour: string; price: number; tier: string }[] }[]
+    | null
+  >(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    loadCourts()
-  }, [])
-
-  useEffect(() => {
-    if (selectedDate && courts.length > 0) {
-      loadAllBookings()
-    }
-  }, [selectedDate, courts])
 
   const loadCourts = async () => {
     try {
       const data = await getActiveCourts()
       setCourts(data)
-    } catch (err) {
+    } catch {
       setError("Failed to load courts")
     }
   }
 
-  const loadAllBookings = async () => {
+  const loadAllBookings = useCallback(async () => {
     if (!selectedDate) return
     try {
       const bookingsMap: CourtBookings = {}
@@ -111,10 +103,26 @@ export default function BookPage() {
         bookingsMap[court.id] = slots
       }
       setCourtBookings(bookingsMap)
-    } catch (err) {
+    } catch {
       setError("Failed to load bookings")
     }
-  }
+  }, [courts, selectedDate])
+
+  useEffect(() => {
+    async function run() {
+      await loadCourts()
+    }
+    run()
+  }, [])
+
+  useEffect(() => {
+    if (selectedDate && courts.length > 0) {
+      async function run() {
+        await loadAllBookings()
+      }
+      run()
+    }
+  }, [selectedDate, courts, loadAllBookings])
 
   const generateTimeSlots = () => {
     const slots = []
@@ -203,7 +211,7 @@ export default function BookPage() {
     }
 
     // Calculate price per court
-    const courtPrices: any[] = []
+    const courtPrices: NonNullable<typeof priceInfo> = []
     try {
       for (const [courtId, slots] of Object.entries(slotsByCourt)) {
         const sorted = [...slots].sort((a, b) => {
@@ -226,7 +234,7 @@ export default function BookPage() {
       }
       setPriceInfo(courtPrices)
       setShowSummary(true)
-    } catch (err) {
+    } catch {
       setError("Failed to calculate price")
     }
   }
@@ -234,7 +242,7 @@ export default function BookPage() {
   const handleConfirmBooking = async () => {
     if (!selectedDate || selectedSlots.length === 0 || !priceInfo) return
 
-    const bookings = (priceInfo as any[]).map((courtPrice) => ({
+    const bookings = priceInfo.map((courtPrice) => ({
       courtId: courtPrice.courtId,
       date: selectedDate,
       startTime: courtPrice.startTime,
@@ -250,8 +258,8 @@ export default function BookPage() {
     try {
       await createMultipleBookings(bookings)
       router.push("/my-bookings")
-    } catch (err: any) {
-      setError(err.message || "Failed to create booking")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create booking")
     } finally {
       setLoading(false)
     }
@@ -388,7 +396,7 @@ export default function BookPage() {
                 <p className="font-medium">{selectedDate && format(selectedDate, "MMMM dd, yyyy")}</p>
               </div>
 
-              {priceInfo && Array.isArray(priceInfo) && priceInfo.map((courtPrice: any, idx: number) => (
+              {priceInfo && Array.isArray(priceInfo) && priceInfo.map((courtPrice) => (
                 <div key={courtPrice.courtId} className="border rounded-lg p-4 bg-gray-50">
                   <div className="flex justify-between items-center mb-2">
                     <p className="font-semibold text-[#16a34a]">{courtPrice.courtName}</p>
@@ -398,7 +406,7 @@ export default function BookPage() {
                     {courtPrice.startTime} - {courtPrice.endTime}
                   </p>
                   <div className="space-y-1">
-                    {courtPrice.priceBreakdown.map((item: any, i: number) => (
+                    {courtPrice.priceBreakdown.map((item, i) => (
                       <div key={i} className="flex justify-between text-sm">
                         <span>{item.hour} <Badge variant="outline" className="ml-1 text-[10px]">{item.tier}</Badge></span>
                         <span className="font-medium">₱{item.price}</span>
@@ -417,7 +425,7 @@ export default function BookPage() {
                   <div className="flex justify-between items-center">
                     <p className="text-lg font-semibold">Total Amount</p>
                     <p className="text-2xl font-bold text-[#16a34a]">
-                      ₱{priceInfo.reduce((sum: number, p: any) => sum + (p.totalAmount || 0), 0)}
+                      ₱{priceInfo.reduce((sum, p) => sum + (p.totalAmount || 0), 0)}
                     </p>
                   </div>
                 </div>

@@ -10,10 +10,20 @@ export async function uploadPaymentScreenshot(bookingId: string, screenshotUrl: 
     throw new Error("Unauthorized")
   }
 
-  const payment = await prisma.payment.findFirst({
-    where: { bookingId },
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { payments: true },
   })
 
+  if (!booking) {
+    throw new Error("Booking not found")
+  }
+
+  if (booking.userId !== session.user.id) {
+    throw new Error("Forbidden")
+  }
+
+  const payment = booking.payments[0]
   if (!payment) {
     throw new Error("Payment not found")
   }
@@ -37,27 +47,31 @@ export async function verifyPayment(paymentId: string, approved: boolean, adminN
     throw new Error("Only administrators can verify payments")
   }
 
-  const payment = await prisma.payment.update({
-    where: { id: paymentId },
-    data: {
-      status: approved ? "verified" : "rejected",
-      adminNotes,
-      verifiedBy: session.user.id,
-      verifiedAt: new Date(),
-    },
-  })
-
-  // Update booking status if payment is verified
-  if (approved) {
-    await prisma.booking.update({
-      where: { id: payment.bookingId },
-      data: { status: "confirmed" },
+  const result = await prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: approved ? "verified" : "rejected",
+        adminNotes,
+        verifiedBy: session.user.id,
+        verifiedAt: new Date(),
+      },
     })
-  }
+
+    // Update booking status if payment is verified
+    if (approved) {
+      await tx.booking.update({
+        where: { id: payment.bookingId },
+        data: { status: "confirmed" },
+      })
+    }
+
+    return payment
+  })
 
   revalidatePath("/admin/payments")
   revalidatePath("/admin/bookings")
-  return payment
+  return result
 }
 
 export async function getPendingPayments() {
@@ -94,7 +108,7 @@ export async function getPendingPayments() {
   return payments
 }
 
-export async function getAllPayments() {
+export async function getAllPayments(page = 1, pageSize = 20) {
   const session = await auth()
   if (!session?.user) {
     throw new Error("Unauthorized")
@@ -104,25 +118,31 @@ export async function getAllPayments() {
     throw new Error("Unauthorized")
   }
 
-  const payments = await prisma.payment.findMany({
-    include: {
-      booking: {
-        include: {
-          court: true,
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phone: true,
+  const skip = Math.max(0, (page - 1) * pageSize)
+  const [payments, total] = await Promise.all([
+    prisma.payment.findMany({
+      include: {
+        booking: {
+          include: {
+            court: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  })
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
+    }),
+    prisma.payment.count(),
+  ])
 
-  return payments
+  return { payments, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
 }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
 import { requireAdmin, requireStaff } from "@/lib/authz"
+import { createUserSchema, resetPasswordSchema } from "@/lib/validation"
 
 export async function searchUsers(query: string) {
   await requireStaff()
@@ -32,24 +33,30 @@ export async function searchUsers(query: string) {
   return users
 }
 
-export async function getAllUsers() {
+export async function getAllUsers(page = 1, pageSize = 20) {
   await requireAdmin()
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      username: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      phone: true,
-      role: true,
-      status: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  })
-  return users
+  const skip = Math.max(0, (page - 1) * pageSize)
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      skip,
+      take: pageSize,
+    }),
+    prisma.user.count(),
+  ])
+  return { users, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
 }
 
 export async function createUser(data: {
@@ -62,6 +69,10 @@ export async function createUser(data: {
   role: "customer" | "staff" | "admin"
 }) {
   await requireAdmin()
+  const parsed = createUserSchema.safeParse(data)
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid user data")
+  }
   const existingUser = await prisma.user.findFirst({
     where: {
       OR: [{ username: data.username }, { email: data.email }],
@@ -144,7 +155,11 @@ export async function toggleUserStatus(userId: string) {
 
 export async function resetUserPassword(userId: string, newPassword: string) {
   await requireAdmin()
-  const passwordHash = await bcrypt.hash(newPassword, 10)
+  const parsed = resetPasswordSchema.safeParse({ password: newPassword })
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid password")
+  }
+  const passwordHash = await bcrypt.hash(parsed.data.password, 10)
 
   await prisma.user.update({
     where: { id: userId },

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import AdminLayout from "@/components/layout/AdminLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getAllProducts, createProduct, updateProduct, deleteProduct, toggleProductStatus } from "@/app/actions/products"
 import { UploadButton } from "@/lib/uploadthing"
 import { cn } from "@/lib/utils"
+import type { Product } from "@prisma/client"
 import {
   ShoppingCart,
   Plus,
@@ -31,11 +33,11 @@ import {
 
 export default function AdminPosPage() {
   const router = useRouter()
-  const [products, setProducts] = useState<any[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<any>(null)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
@@ -48,10 +50,6 @@ export default function AdminPosPage() {
     stock: "",
   })
 
-  useEffect(() => {
-    loadProducts()
-  }, [])
-
   const loadProducts = async () => {
     try {
       const data = await getAllProducts()
@@ -62,6 +60,13 @@ export default function AdminPosPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function run() {
+      await loadProducts()
+    }
+    run()
+  }, [])
 
   const resetForm = () => {
     setFormData({
@@ -77,7 +82,7 @@ export default function AdminPosPage() {
     setSuccess("")
   }
 
-  const handleEdit = (product: any) => {
+  const handleEdit = (product: Product) => {
     setEditingProduct(product)
     setFormData({
       name: product.name,
@@ -120,8 +125,8 @@ export default function AdminPosPage() {
       resetForm()
       setDialogOpen(false)
       loadProducts()
-    } catch (err: any) {
-      setError(err.message || "Failed to save product")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save product")
     }
   }
 
@@ -276,9 +281,11 @@ export default function AdminPosPage() {
                   <Label>Item Image (Optional)</Label>
                   {formData.imageUrl ? (
                     <div className="mt-2 space-y-2">
-                      <img
+                      <Image
                         src={formData.imageUrl}
                         alt="Preview"
+                        width={400}
+                        height={160}
                         className="w-full h-40 object-cover rounded-lg border"
                       />
                       <Button
@@ -405,10 +412,11 @@ export default function AdminPosPage() {
                 {/* Image */}
                 <div className="relative h-40 bg-gray-100">
                   {product.imageUrl ? (
-                    <img
+                    <Image
                       src={product.imageUrl}
                       alt={product.name}
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import AdminLayout from "@/components/layout/AdminLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getAllProducts } from "@/app/actions/products"
 import { createBatchSales } from "@/app/actions/sales"
+import type { Product } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import {
   ShoppingCart,
@@ -37,7 +39,7 @@ interface CartItem {
 
 export default function RecordSalePage() {
   const router = useRouter()
-  const [products, setProducts] = useState<any[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [cart, setCart] = useState<CartItem[]>([])
@@ -49,14 +51,10 @@ export default function RecordSalePage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
-  useEffect(() => {
-    loadProducts()
-  }, [])
-
   const loadProducts = async () => {
     try {
       const data = await getAllProducts()
-      setProducts(data.filter((p: any) => p.isActive))
+      setProducts(data.filter((p) => p.isActive))
     } catch (err) {
       console.error("Failed to load products:", err)
     } finally {
@@ -64,13 +62,20 @@ export default function RecordSalePage() {
     }
   }
 
+  useEffect(() => {
+    async function run() {
+      await loadProducts()
+    }
+    run()
+  }, [])
+
   const filteredProducts = products.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       (p.description && p.description.toLowerCase().includes(search.toLowerCase()))
   )
 
-  const addToCart = (product: any) => {
+  const addToCart = (product: Product) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.productId === product.id)
       if (existing) {
@@ -143,8 +148,8 @@ export default function RecordSalePage() {
       setCustomerPhone("")
       setNotes("")
       loadProducts()
-    } catch (err: any) {
-      setError(err.message || "Failed to record sale")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to record sale")
     } finally {
       setSubmitting(false)
     }
@@ -237,10 +242,12 @@ export default function RecordSalePage() {
                       <CardContent className="p-3">
                         <div className="flex items-center gap-3">
                           {product.imageUrl ? (
-                            <img
+                            <Image
                               src={product.imageUrl}
                               alt={product.name}
-                              className="w-14 h-14 rounded-lg object-cover border flex-shrink-0"
+                              width={56}
+                              height={56}
+                              className="rounded-lg object-cover border flex-shrink-0"
                             />
                           ) : (
                             <div className="w-14 h-14 rounded-lg bg-gray-100 border flex items-center justify-center flex-shrink-0">
@@ -309,10 +316,12 @@ export default function RecordSalePage() {
                         className="flex items-center gap-3 p-2 rounded-lg bg-gray-50 border border-gray-100"
                       >
                         {item.imageUrl ? (
-                          <img
+                          <Image
                             src={item.imageUrl}
                             alt={item.name}
-                            className="w-10 h-10 rounded object-cover border flex-shrink-0"
+                            width={40}
+                            height={40}
+                            className="rounded object-cover border flex-shrink-0"
                           />
                         ) : (
                           <div className="w-10 h-10 rounded bg-white border flex items-center justify-center flex-shrink-0">

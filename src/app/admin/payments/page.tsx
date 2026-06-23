@@ -12,21 +12,35 @@ import { Input } from "@/components/ui/input"
 import { getAllPayments, verifyPayment } from "@/app/actions/payments"
 import { format } from "date-fns"
 import { CheckCircle, XCircle, Eye, CreditCard, Clock, AlertTriangle } from "lucide-react"
+import Image from "next/image"
+import type { Payment, Booking, Court } from "@prisma/client"
+
+type PaymentWithDetails = Payment & {
+  booking: Booking & {
+    court: Court
+    user: {
+      id: string
+      firstName: string
+      lastName: string
+      email: string
+      phone: string | null
+    }
+  }
+}
 
 export default function AdminPaymentsPage() {
-  const [payments, setPayments] = useState<any[]>([])
+  const [payments, setPayments] = useState<PaymentWithDetails[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedPayment, setSelectedPayment] = useState<any>(null)
   const [adminNotes, setAdminNotes] = useState("")
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
 
-  useEffect(() => {
-    loadPayments()
-  }, [])
-
-  const loadPayments = async () => {
+  const loadPayments = async (p: number) => {
     try {
-      const data = await getAllPayments()
-      setPayments(data)
+      const data = await getAllPayments(p)
+      setPayments(data.payments as PaymentWithDetails[])
+      setTotalPages(data.totalPages)
+      setPage(data.page)
     } catch (err) {
       console.error("Failed to load payments:", err)
     } finally {
@@ -34,12 +48,18 @@ export default function AdminPaymentsPage() {
     }
   }
 
+  useEffect(() => {
+    async function run() {
+      await loadPayments(1)
+    }
+    run()
+  }, [])
+
   const handleVerify = async (paymentId: string, approved: boolean) => {
     try {
       await verifyPayment(paymentId, approved, adminNotes)
-      setSelectedPayment(null)
       setAdminNotes("")
-      loadPayments()
+      loadPayments(page)
     } catch (err) {
       console.error("Failed to verify payment:", err)
     }
@@ -137,9 +157,11 @@ export default function AdminPaymentsPage() {
                               <DialogTitle>Payment Screenshot</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-4">
-                              <img
+                              <Image
                                 src={payment.screenshotUrl}
                                 alt="Payment screenshot"
+                                width={600}
+                                height={400}
                                 className="max-w-full max-h-[60vh] object-contain rounded-lg border"
                               />
                               <a
@@ -164,7 +186,6 @@ export default function AdminPaymentsPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setSelectedPayment(payment)}
                             >
                               Verify
                             </Button>
@@ -179,9 +200,11 @@ export default function AdminPaymentsPage() {
                             <div className="space-y-4">
                               <div>
                                 <Label>Screenshot</Label>
-                                <img
+                                <Image
                                   src={payment.screenshotUrl}
                                   alt="Payment screenshot"
+                                  width={500}
+                                  height={400}
                                   className="max-w-full max-h-[50vh] object-contain rounded-lg border mt-2"
                                 />
                               </div>
@@ -222,6 +245,32 @@ export default function AdminPaymentsPage() {
             </Table>
           </CardContent>
         </Card>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => loadPayments(page - 1)}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => loadPayments(page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   )

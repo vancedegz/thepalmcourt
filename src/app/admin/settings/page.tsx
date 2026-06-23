@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getBusinessSettings, updateBusinessSettings } from "@/app/actions/settings"
-import { Settings, Clock, MapPin, Phone, Mail, FileText, CreditCard, Building, Save } from "lucide-react"
+import { Clock, FileText, Building, Save } from "lucide-react"
 
 export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true)
@@ -23,15 +23,12 @@ export default function AdminSettingsPage() {
     address: "",
     openingTime: "",
     closingTime: "",
+    timezone: "Asia/Manila",
     defaultPricePerHour: 250,
     bookingRules: "",
     paymentInstructions: "",
     bankDetails: "",
   })
-
-  useEffect(() => {
-    loadSettings()
-  }, [])
 
   const loadSettings = async () => {
     try {
@@ -45,18 +42,26 @@ export default function AdminSettingsPage() {
           address: data.address,
           openingTime: data.openingTime,
           closingTime: data.closingTime,
+          timezone: data.timezone || "Asia/Manila",
           defaultPricePerHour: data.defaultPricePerHour,
           bookingRules: data.bookingRules || "",
           paymentInstructions: data.paymentInstructions || "",
           bankDetails: data.bankDetails || "",
         })
       }
-    } catch (err) {
+    } catch {
       setError("Failed to load settings")
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function run() {
+      await loadSettings()
+    }
+    run()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,8 +72,8 @@ export default function AdminSettingsPage() {
     try {
       await updateBusinessSettings(formData)
       setMessage("Settings updated successfully")
-    } catch (err: any) {
-      setError(err.message || "Failed to update settings")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update settings")
     } finally {
       setSaving(false)
     }
@@ -208,6 +213,19 @@ export default function AdminSettingsPage() {
                     required
                   />
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="timezone">Timezone (IANA)</Label>
+                <Input
+                  id="timezone"
+                  value={formData.timezone}
+                  onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                  placeholder="Asia/Manila"
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Operating hours above are interpreted in this timezone.
+                </p>
               </div>
             </CardContent>
           </Card>

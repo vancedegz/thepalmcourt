@@ -1,7 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { useState } from "react"
+import { SITE } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 
@@ -19,12 +21,14 @@ export default function PublicLayout({
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center">
               <Link href="/" className="flex items-center space-x-2 sm:space-x-3">
-                <img
-                  src="https://hyrwy9xec9.ufs.sh/f/0efuR0hwb0QyWwEIYatMroMZ2QKbfuBX34Y5cNptxEj6a9DR"
-                  alt="The Palm Court"
+                <Image
+                  src={SITE.logoUrl}
+                  alt={SITE.name}
+                  width={48}
+                  height={48}
                   className="h-9 w-9 sm:h-12 sm:w-12 object-contain"
                 />
-                <span className="text-lg sm:text-xl font-bold text-[#16a34a]">The Palm Court</span>
+                <span className="text-lg sm:text-xl font-bold text-[#16a34a]">{SITE.name}</span>
               </Link>
             </div>
             {/* Desktop nav */}

@@ -7,6 +7,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,7 +25,18 @@ jobs:
       - name: Generate Prisma Client
         run: npm run db:generate
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
       - name: Build Next.js
+        env:
+          # Provide a placeholder DATABASE_URL so the build can type-check
+          # Prisma queries without needing a real database connection.
+          DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+          AUTH_SECRET: "ci-build-placeholder-secret"
         run: npm run build
 
       - name: Deploy to Virtualmin via SSH

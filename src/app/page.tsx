@@ -1,5 +1,7 @@
 import Link from "next/link"
+import Image from "next/image"
 import PublicLayout from "@/components/layout/PublicLayout"
+import { SITE } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,9 +18,11 @@ export default function HomePage() {
           <div className="text-center text-white">
             <div className="flex justify-center mb-8">
               <div className="bg-white/20 backdrop-blur-sm rounded-full p-6 border-2 border-white/30">
-                <img
-                  src="https://hyrwy9xec9.ufs.sh/f/0efuR0hwb0QyWwEIYatMroMZ2QKbfuBX34Y5cNptxEj6a9DR"
-                  alt="The Palm Court"
+                <Image
+                  src={SITE.logoUrl}
+                  alt={SITE.name}
+                  width={128}
+                  height={128}
                   className="h-24 w-24 md:h-32 md:w-32 object-contain"
                 />
               </div>
@@ -288,7 +292,7 @@ export default function HomePage() {
               Get in Touch
             </h2>
             <p className="text-xl text-white/80 max-w-2xl mx-auto">
-              Have questions? We're here to help you get started on your pickleball journey.
+              Have questions? We&apos;re here to help you get started on your pickleball journey.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">

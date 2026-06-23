@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import AdminLayout from "@/components/layout/AdminLayout"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,14 @@ import { calculatePrice } from "@/app/actions/settings"
 import { format, addDays, isSameDay } from "date-fns"
 import { Calendar as CalendarIcon, Check, X, Search, User, Phone, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { Court, User as UserType } from "@prisma/client"
+
+type SearchUser = Pick<UserType, "id" | "username" | "email" | "firstName" | "lastName" | "phone">
+
+type CourtPriceInfo = {
+  totalAmount: number
+  priceBreakdown: { hour: string; price: number; tier: string }[]
+}
 
 interface CourtBookings {
   [courtId: string]: { startTime: string; endTime: string }[]
@@ -65,7 +73,7 @@ function DateStrip({
 
 export default function AdminCreateBookingPage() {
   const router = useRouter()
-  const [courts, setCourts] = useState<any[]>([])
+  const [courts, setCourts] = useState<Court[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -75,33 +83,57 @@ export default function AdminCreateBookingPage() {
   const [courtBookings, setCourtBookings] = useState<CourtBookings>({})
   const [selectedSlots, setSelectedSlots] = useState<string[]>([])
   const [showSummary, setShowSummary] = useState(false)
-  const [priceInfo, setPriceInfo] = useState<any>(null)
+  const [priceInfo, setPriceInfo] = useState<CourtPriceInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
   // User search
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([])
+  const [selectedUser, setSelectedUser] = useState<SearchUser | null>(null)
   const [isManual, setIsManual] = useState(false)
   const [manualName, setManualName] = useState("")
   const [manualPhone, setManualPhone] = useState("")
   const [searching, setSearching] = useState(false)
 
+  const loadCourts = async () => {
+    try {
+      const data = await getActiveCourts()
+      setCourts(data)
+      if (data.length > 0) setSelectedCourt(data[0].id)
+    } catch {
+      setError("Failed to load courts")
+    }
+  }
+
+  const loadCourtBookings = useCallback(async () => {
+    if (!selectedCourt || !selectedDate) return
+    try {
+      const slots = await getAvailableSlots(selectedCourt, selectedDate)
+      setCourtBookings({ [selectedCourt]: slots })
+    } catch {
+      setError("Failed to load bookings")
+    }
+  }, [selectedCourt, selectedDate])
+
   useEffect(() => {
-    loadCourts()
+    async function run() {
+      await loadCourts()
+    }
+    run()
   }, [])
 
   useEffect(() => {
-    if (selectedCourt && selectedDate) {
-      loadCourtBookings()
+    if (!selectedCourt || !selectedDate) return
+    async function run() {
+      await loadCourtBookings()
     }
-  }, [selectedCourt, selectedDate])
+    run()
+  }, [selectedCourt, selectedDate, loadCourtBookings])
 
   // Debounced search
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2 || isManual) {
-      setSearchResults([])
       return
     }
     const timer = setTimeout(async () => {
@@ -117,26 +149,6 @@ export default function AdminCreateBookingPage() {
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery, isManual])
-
-  const loadCourts = async () => {
-    try {
-      const data = await getActiveCourts()
-      setCourts(data)
-      if (data.length > 0) setSelectedCourt(data[0].id)
-    } catch {
-      setError("Failed to load courts")
-    }
-  }
-
-  const loadCourtBookings = async () => {
-    if (!selectedCourt || !selectedDate) return
-    try {
-      const slots = await getAvailableSlots(selectedCourt, selectedDate)
-      setCourtBookings({ [selectedCourt]: slots })
-    } catch {
-      setError("Failed to load bookings")
-    }
-  }
 
   const generateTimeSlots = () => {
     const slots = []
@@ -257,8 +269,8 @@ export default function AdminCreateBookingPage() {
         guestPhone: isManual ? manualPhone : undefined,
       })
       router.push("/admin/bookings")
-    } catch (err: any) {
-      setError(err.message || "Failed to create booking")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create booking")
     } finally {
       setLoading(false)
     }
@@ -354,7 +366,7 @@ export default function AdminCreateBookingPage() {
                     </div>
                   )}
                   {searchQuery.length >= 2 && !searching && searchResults.length === 0 && !selectedUser && (
-                    <p className="text-xs text-gray-500 mt-1">No customers found. Toggle "Walk-in" to enter manually.</p>
+                    <p className="text-xs text-gray-500 mt-1">No customers found. Toggle &quot;Walk-in&quot; to enter manually.</p>
                   )}
                 </div>
               ) : (
@@ -541,7 +553,7 @@ export default function AdminCreateBookingPage() {
                   <div className="border-t pt-4">
                     <p className="text-sm text-muted-foreground mb-2">Price Breakdown</p>
                     <div className="space-y-1">
-                      {priceInfo.priceBreakdown.map((item: any, index: number) => (
+                      {priceInfo.priceBreakdown.map((item, index) => (
                         <div key={index} className="flex justify-between text-sm">
                           <span>
                             {item.hour} <Badge variant="outline" className="ml-1">{item.tier}</Badge>

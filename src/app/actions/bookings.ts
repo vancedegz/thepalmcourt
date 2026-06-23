@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache"
 import { format } from "date-fns"
 import { requireUser, requireStaff } from "@/lib/authz"
 import { calculatePrice } from "./settings"
+import type { Prisma } from "@prisma/client"
+import { createBookingSchema, createAdminBookingSchema } from "@/lib/validation"
 
 type PriceBreakdownItem = { hour: string; price: number; tier: string }
 
@@ -36,8 +38,11 @@ async function priceBooking(input: BookingInput) {
   return { durationHours, totalAmount, priceBreakdown }
 }
 
-async function assertSlotAvailable(input: BookingInput) {
-  const existing = await prisma.booking.findMany({
+async function assertSlotAvailable(
+  tx: Prisma.TransactionClient,
+  input: BookingInput
+) {
+  const existing = await tx.booking.findMany({
     where: { courtId: input.courtId, date: input.date, status: { not: "cancelled" } },
     select: { startTime: true, endTime: true },
   })
@@ -48,6 +53,43 @@ async function assertSlotAvailable(input: BookingInput) {
   if (overlaps) {
     throw new Error("Selected time slot is no longer available")
   }
+}
+
+async function createBookingWithPayment(
+  tx: Prisma.TransactionClient,
+  data: BookingInput & {
+    userId: string
+    status?: "pending" | "confirmed"
+  }
+) {
+  const priced = await priceBooking(data)
+  await assertSlotAvailable(tx, data)
+
+  const booking = await tx.booking.create({
+    data: {
+      referenceNumber: generateReferenceNumber(),
+      userId: data.userId,
+      courtId: data.courtId,
+      date: data.date,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      durationHours: priced.durationHours,
+      totalAmount: priced.totalAmount,
+      priceBreakdown: priced.priceBreakdown,
+      status: data.status ?? "pending",
+    },
+  })
+
+  await tx.payment.create({
+    data: {
+      bookingId: booking.id,
+      userId: data.userId,
+      amount: priced.totalAmount,
+      status: "pending",
+    },
+  })
+
+  return booking
 }
 
 export async function createBooking(data: {
@@ -61,31 +103,16 @@ export async function createBooking(data: {
 }) {
   const session = await requireUser()
 
-  const priced = await priceBooking(data)
-  await assertSlotAvailable(data)
+  const parsed = createBookingSchema.safeParse(data)
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid booking data")
+  }
 
-  const booking = await prisma.booking.create({
-    data: {
-      referenceNumber: generateReferenceNumber(),
+  const booking = await prisma.$transaction(async (tx) => {
+    return createBookingWithPayment(tx, {
+      ...data,
       userId: session.user.id,
-      courtId: data.courtId,
-      date: data.date,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      durationHours: priced.durationHours,
-      totalAmount: priced.totalAmount,
-      priceBreakdown: priced.priceBreakdown,
-      status: "pending",
-    },
-  })
-
-  await prisma.payment.create({
-    data: {
-      bookingId: booking.id,
-      userId: session.user.id,
-      amount: priced.totalAmount,
-      status: "pending",
-    },
+    })
   })
 
   revalidatePath("/my-bookings")
@@ -105,38 +132,24 @@ export async function createMultipleBookings(
 ) {
   const session = await requireUser()
 
-  const createdBookings = []
-
   for (const data of bookings) {
-    const priced = await priceBooking(data)
-    await assertSlotAvailable(data)
-
-    const booking = await prisma.booking.create({
-      data: {
-        referenceNumber: generateReferenceNumber(),
-        userId: session.user.id,
-        courtId: data.courtId,
-        date: data.date,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        durationHours: priced.durationHours,
-        totalAmount: priced.totalAmount,
-        priceBreakdown: priced.priceBreakdown,
-        status: "pending",
-      },
-    })
-
-    await prisma.payment.create({
-      data: {
-        bookingId: booking.id,
-        userId: session.user.id,
-        amount: priced.totalAmount,
-        status: "pending",
-      },
-    })
-
-    createdBookings.push(booking)
+    const parsed = createBookingSchema.safeParse(data)
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message ?? "Invalid booking data")
+    }
   }
+
+  const createdBookings = await prisma.$transaction(async (tx) => {
+    const results = []
+    for (const data of bookings) {
+      const booking = await createBookingWithPayment(tx, {
+        ...data,
+        userId: session.user.id,
+      })
+      results.push(booking)
+    }
+    return results
+  })
 
   revalidatePath("/my-bookings")
   return createdBookings
@@ -169,27 +182,33 @@ export async function getMyBookings() {
   return bookings
 }
 
-export async function getAllBookings() {
+export async function getAllBookings(page = 1, pageSize = 20) {
   await requireStaff()
 
-  const bookings = await prisma.booking.findMany({
-    include: {
-      court: true,
-      user: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
+  const skip = Math.max(0, (page - 1) * pageSize)
+  const [bookings, total] = await Promise.all([
+    prisma.booking.findMany({
+      include: {
+        court: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
         },
+        payments: true,
       },
-      payments: true,
-    },
-    orderBy: { createdAt: "desc" },
-  })
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
+    }),
+    prisma.booking.count(),
+  ])
 
-  return bookings
+  return { bookings, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
 }
 
 export async function getAvailableSlots(courtId: string, date: Date) {
@@ -222,55 +241,40 @@ export async function createAdminBooking(data: {
 }) {
   await requireStaff()
 
-  const priced = await priceBooking(data)
-  await assertSlotAvailable(data)
+  const parsed = createAdminBookingSchema.safeParse(data)
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid booking data")
+  }
 
-  let userId = data.userId
+  const booking = await prisma.$transaction(async (tx) => {
+    let userId = data.userId
 
-  // If no existing user, create a guest user for walk-in
-  if (!userId && data.guestName) {
-    const timestamp = Date.now()
-    const randomStr = Math.random().toString(36).substring(2, 8)
-    const guestUser = await prisma.user.create({
-      data: {
-        username: `guest_${timestamp}_${randomStr}`,
-        email: `guest_${timestamp}@palm.court`,
-        passwordHash: "guest",
-        firstName: data.guestName.trim(),
-        lastName: "",
-        phone: data.guestPhone?.trim() || null,
-        role: "customer",
-      },
+    // If no existing user, create a guest user for walk-in
+    if (!userId && data.guestName) {
+      const timestamp = Date.now()
+      const randomStr = Math.random().toString(36).substring(2, 8)
+      const guestUser = await tx.user.create({
+        data: {
+          username: `guest_${timestamp}_${randomStr}`,
+          email: `guest_${timestamp}@palm.court`,
+          passwordHash: "guest",
+          firstName: data.guestName.trim(),
+          lastName: "",
+          phone: data.guestPhone?.trim() || null,
+          role: "customer",
+        },
+      })
+      userId = guestUser.id
+    }
+
+    if (!userId) {
+      throw new Error("Either select an existing user or enter a guest name")
+    }
+
+    return createBookingWithPayment(tx, {
+      ...data,
+      userId,
     })
-    userId = guestUser.id
-  }
-
-  if (!userId) {
-    throw new Error("Either select an existing user or enter a guest name")
-  }
-
-  const booking = await prisma.booking.create({
-    data: {
-      referenceNumber: generateReferenceNumber(),
-      userId,
-      courtId: data.courtId,
-      date: data.date,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      durationHours: priced.durationHours,
-      totalAmount: priced.totalAmount,
-      priceBreakdown: priced.priceBreakdown,
-      status: "pending",
-    },
-  })
-
-  await prisma.payment.create({
-    data: {
-      bookingId: booking.id,
-      userId,
-      amount: priced.totalAmount,
-      status: "pending",
-    },
   })
 
   revalidatePath("/admin/bookings")

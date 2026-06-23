@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
+import { registerSchema } from "@/lib/validation"
+import { ZodError } from "zod"
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, email, password, firstName, lastName, phone } = await request.json()
+    const body = await request.json()
+    const parsed = registerSchema.safeParse(body)
 
-    // Validate input
-    if (!username || !email || !password || !firstName || !lastName) {
-      return NextResponse.json(
-        { error: "All required fields must be provided" },
-        { status: 400 }
-      )
+    if (!parsed.success) {
+      const message = parsed.error.issues[0]?.message ?? "Invalid input"
+      return NextResponse.json({ error: message }, { status: 400 })
     }
+
+    const { username, email, password, firstName, lastName, phone } = parsed.data
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -60,6 +62,12 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: error.issues[0]?.message ?? "Invalid input" },
+        { status: 400 }
+      )
+    }
     console.error("Registration error:", error)
     return NextResponse.json(
       { error: "Internal server error" },

@@ -2,7 +2,9 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import Link from "next/link"
+import { SITE } from "@/lib/constants"
 import PublicLayout from "@/components/layout/PublicLayout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -66,7 +68,7 @@ export default function RegisterPage() {
       } else {
         router.push("/login?message=Registration successful. Please sign in.")
       }
-    } catch (error) {
+    } catch {
       setError("An error occurred. Please try again.")
     } finally {
       setIsLoading(false)
@@ -81,16 +83,18 @@ export default function RegisterPage() {
           <CardHeader className="text-center pt-8">
             <div className="flex justify-center mb-4">
               <div className="w-20 h-20 rounded-full bg-white border-4 border-primary/20 p-1 shadow-lg">
-                <img
-                  src="https://hyrwy9xec9.ufs.sh/f/0efuR0hwb0QyWwEIYatMroMZ2QKbfuBX34Y5cNptxEj6a9DR"
-                  alt="The Palm Court"
+                <Image
+                  src={SITE.logoUrl}
+                  alt={SITE.name}
+                  width={80}
+                  height={80}
                   className="w-full h-full object-contain rounded-full"
                 />
               </div>
             </div>
             <CardTitle className="text-2xl text-[#16a34a]">Create Account</CardTitle>
             <CardDescription>
-              Join The Palm Court to start booking courts
+              Join {SITE.name} to start booking courts
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -3,7 +3,9 @@
 import Link from "next/link"
 import { useState } from "react"
 import { useSession, signOut } from "next-auth/react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
+import { SITE } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -30,12 +32,14 @@ export default function CustomerLayout({
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center">
               <Link href="/book" className="flex items-center space-x-2 sm:space-x-3">
-                <img
-                  src="https://hyrwy9xec9.ufs.sh/f/0efuR0hwb0QyWwEIYatMroMZ2QKbfuBX34Y5cNptxEj6a9DR"
-                  alt="The Palm Court"
+                <Image
+                  src={SITE.logoUrl}
+                  alt={SITE.name}
+                  width={40}
+                  height={40}
                   className="h-9 w-9 sm:h-10 sm:w-10 object-contain"
                 />
-                <span className="text-lg sm:text-xl font-bold text-[#16a34a]">The Palm Court</span>
+                <span className="text-lg sm:text-xl font-bold text-[#16a34a]">{SITE.name}</span>
               </Link>
             </div>
             {/* Desktop nav */}

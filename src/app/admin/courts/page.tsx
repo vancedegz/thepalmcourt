@@ -12,22 +12,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getCourts, upsertCourt, deleteCourt } from "@/app/actions/courts"
 import { cn } from "@/lib/utils"
 import { Plus, Edit, Trash2, MapPin } from "lucide-react"
+import type { Court } from "@prisma/client"
 
 export default function AdminCourtsPage() {
-  const [courts, setCourts] = useState<any[]>([])
+  const [courts, setCourts] = useState<Court[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingCourt, setEditingCourt] = useState<any>(null)
+  const [editingCourt, setEditingCourt] = useState<Court | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     number: 1,
     description: "",
     status: "active" as "active" | "maintenance",
   })
-
-  useEffect(() => {
-    loadCourts()
-  }, [])
 
   const loadCourts = async () => {
     try {
@@ -39,6 +36,13 @@ export default function AdminCourtsPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function run() {
+      await loadCourts()
+    }
+    run()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,7 +59,7 @@ export default function AdminCourtsPage() {
     }
   }
 
-  const handleEdit = (court: any) => {
+  const handleEdit = (court: Court) => {
     setEditingCourt(court)
     setFormData({
       name: court.name,
