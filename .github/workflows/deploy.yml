@@ -48,6 +48,8 @@ jobs:
           source: ".,!.env,!.git,!.github,!.next/cache,node_modules/@prisma,prisma"
           target: "${{ secrets.VM_PATH }}"
           strip_components: 0
+          overwrite: true
+          tar_exec: "tar --no-same-permissions --no-same-owner"
 
       - name: Restart app via SSH
         uses: appleboy/ssh-action@v1.0.3
