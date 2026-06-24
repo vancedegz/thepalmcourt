@@ -49,7 +49,6 @@ jobs:
           target: "${{ secrets.VM_PATH }}"
           strip_components: 0
           overwrite: true
-          tar_dereference: true
 
       - name: Restart app via SSH
         uses: appleboy/ssh-action@v1.0.3
