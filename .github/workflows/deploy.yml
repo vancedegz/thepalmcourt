@@ -81,5 +81,10 @@ jobs:
             npx prisma generate
             npx prisma migrate deploy
             mkdir -p logs
+            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            export AUTH_SECRET="${{ secrets.VM_NEXTAUTH_SECRET }}"
+            export NEXTAUTH_SECRET="${{ secrets.VM_NEXTAUTH_SECRET }}"
+            export NEXTAUTH_URL="${{ secrets.VM_NEXTAUTH_URL }}"
+            export UPLOADTHING_TOKEN="${{ secrets.UPLOADTHING_TOKEN }}"
             pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js
             pm2 save
