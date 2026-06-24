@@ -1,4 +1,4 @@
-name: Deploy to Virtualmin # v2
+name: Deploy to Virtualmin
 
 on:
   push:
@@ -31,41 +31,27 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Build Next.js
-        env:
-          # Provide a placeholder DATABASE_URL so the build can type-check
-          # Prisma queries without needing a real database connection.
-          DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
-          AUTH_SECRET: "ci-build-placeholder-secret"
-        run: npm run build
-
-      - name: Copy static assets into standalone
-        run: |
-          cp -r .next/static .next/standalone/.next/static
-          cp -r public .next/standalone/public
-          cp -r node_modules/@prisma .next/standalone/node_modules/@prisma
-          cp -r node_modules/.prisma .next/standalone/node_modules/.prisma
-
-      - name: Deploy to Virtualmin via SSH
+      - name: Deploy source to server via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           password: ${{ secrets.VM_PASSWORD }}
-          source: ".,!.env,!.git,!.github,!.next/cache,!node_modules,node_modules/@prisma,prisma"
+          source: ".,!.env,!.git,!.github,!.next,!node_modules"
           target: "${{ secrets.VM_PATH }}"
           strip_components: 0
           overwrite: true
 
-      - name: Setup server and restart app via SSH
+      - name: Build and restart app on server via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           password: ${{ secrets.VM_PASSWORD }}
+          command_timeout: 30m
           script_stop: true
           script: |
-            # --- Install PM2 globally if not present ---
+            # --- Install PM2 if not present ---
             if ! command -v pm2 &> /dev/null; then
               npm install -g pm2 || true
             fi
@@ -77,14 +63,19 @@ jobs:
               '${{ secrets.VM_NEXTAUTH_SECRET }}' \
               '${{ secrets.UPLOADTHING_TOKEN }}' \
               > ${{ secrets.VM_PATH }}/.env
-            # --- Fix ownership so SSH user can manage files ---
-            chown -R "$(whoami)" ${{ secrets.VM_PATH }}/node_modules 2>/dev/null || true
-            # --- Install deps and migrate ---
             cd ${{ secrets.VM_PATH }}
-            rm -rf node_modules
-            npm install --omit=dev
-            npx prisma generate
+            # --- Install all deps (including devDeps for build) ---
+            npm install
+            # --- Build on server so Prisma client matches ---
+            DATABASE_URL="${{ secrets.DATABASE_URL }}" AUTH_SECRET="${{ secrets.VM_NEXTAUTH_SECRET }}" npm run build
+            # --- Copy assets into standalone ---
+            cp -r .next/static .next/standalone/.next/static
+            cp -r public .next/standalone/public
+            # --- Migrate DB ---
             npx prisma migrate deploy
             mkdir -p logs
-            pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js
+            # --- Restart app ---
+            fuser -k 3001/tcp 2>/dev/null || true
+            pm2 delete pickleball-courts 2>/dev/null || true
+            pm2 start ecosystem.config.js
             pm2 save
