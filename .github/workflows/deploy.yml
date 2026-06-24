@@ -75,19 +75,14 @@ jobs:
               '${{ secrets.VM_NEXTAUTH_SECRET }}' \
               '${{ secrets.UPLOADTHING_TOKEN }}' \
               > ${{ secrets.VM_PATH }}/.env
-            # --- Install deps, migrate, start app ---
+            # --- Fix ownership so SSH user can manage files ---
+            chown -R "$(whoami)" ${{ secrets.VM_PATH }}/node_modules 2>/dev/null || true
+            # --- Install deps and migrate ---
             cd ${{ secrets.VM_PATH }}
             rm -rf node_modules
             npm install --omit=dev
             npx prisma generate
             npx prisma migrate deploy
-            npm install tsx
-            npx tsx prisma/seed.ts
             mkdir -p logs
-            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
-            export AUTH_SECRET="${{ secrets.VM_NEXTAUTH_SECRET }}"
-            export NEXTAUTH_SECRET="${{ secrets.VM_NEXTAUTH_SECRET }}"
-            export NEXTAUTH_URL="${{ secrets.VM_NEXTAUTH_URL }}"
-            export UPLOADTHING_TOKEN="${{ secrets.UPLOADTHING_TOKEN }}"
             pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js
             pm2 save
