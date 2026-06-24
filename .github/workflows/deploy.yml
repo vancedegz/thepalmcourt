@@ -39,6 +39,11 @@ jobs:
           AUTH_SECRET: "ci-build-placeholder-secret"
         run: npm run build
 
+      - name: Copy static assets into standalone
+        run: |
+          cp -r .next/static .next/standalone/.next/static
+          cp -r public .next/standalone/public
+
       - name: Deploy to Virtualmin via SSH
         uses: appleboy/scp-action@v0.1.7
         with:
