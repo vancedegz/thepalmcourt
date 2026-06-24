@@ -57,16 +57,9 @@ jobs:
           username: ${{ secrets.VM_USER }}
           password: ${{ secrets.VM_PASSWORD }}
           script: |
-            # --- Install Node.js 20 if not present ---
-            if ! command -v node &> /dev/null || [[ "$(node -v)" != v20* ]]; then
-              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
-              sudo apt-get install -y nodejs
-            fi
-
             # --- Install PM2 globally if not present ---
             if ! command -v pm2 &> /dev/null; then
-              npm install -g pm2
-              pm2 startup | tail -1 | bash || true
+              npm install -g pm2 || true
             fi
 
             # --- Write .env if secrets are provided ---
