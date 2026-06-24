@@ -63,12 +63,12 @@ jobs:
             fi
 
             # --- Write .env if secrets are provided ---
-            if [ -n "${{ secrets.VM_DATABASE_URL }}" ]; then
+            if [ -n "${{ secrets.DATABASE_URL }}" ]; then
               cat > ${{ secrets.VM_PATH }}/.env <<'ENVEOF'
-            DATABASE_URL="${{ secrets.VM_DATABASE_URL }}"
+            DATABASE_URL="${{ secrets.DATABASE_URL }}"
             NEXTAUTH_URL="${{ secrets.VM_NEXTAUTH_URL }}"
             NEXTAUTH_SECRET="${{ secrets.VM_NEXTAUTH_SECRET }}"
-            UPLOADTHING_TOKEN="${{ secrets.VM_UPLOADTHING_TOKEN }}"
+            UPLOADTHING_TOKEN="${{ secrets.UPLOADTHING_TOKEN }}"
             ENVEOF
             fi
 
