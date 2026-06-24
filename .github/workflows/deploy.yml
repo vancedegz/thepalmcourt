@@ -43,6 +43,8 @@ jobs:
         run: |
           cp -r .next/static .next/standalone/.next/static
           cp -r public .next/standalone/public
+          cp -r node_modules/@prisma .next/standalone/node_modules/@prisma
+          cp -r node_modules/.prisma .next/standalone/node_modules/.prisma
 
       - name: Deploy to Virtualmin via SSH
         uses: appleboy/scp-action@v0.1.7
