@@ -50,7 +50,7 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           password: ${{ secrets.VM_PASSWORD }}
-          source: ".,!.env,!.git,!.github,!.next/cache,node_modules/@prisma,prisma"
+          source: ".,!.env,!.git,!.github,!.next/cache,!node_modules,node_modules/@prisma,prisma"
           target: "${{ secrets.VM_PATH }}"
           strip_components: 0
           overwrite: true
