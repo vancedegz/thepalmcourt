@@ -44,7 +44,7 @@ jobs:
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
+          password: ${{ secrets.VM_PASSWORD }}
           source: ".,!.env,!.git,!.github,!.next/cache,node_modules/@prisma,prisma"
           target: "${{ secrets.VM_PATH }}"
           rm: true
@@ -55,7 +55,7 @@ jobs:
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
+          password: ${{ secrets.VM_PASSWORD }}
           script: |
             cd ${{ secrets.VM_PATH }}
             npm install --production
