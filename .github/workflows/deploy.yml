@@ -47,7 +47,6 @@ jobs:
           password: ${{ secrets.VM_PASSWORD }}
           source: ".,!.env,!.git,!.github,!.next/cache,node_modules/@prisma,prisma"
           target: "${{ secrets.VM_PATH }}"
-          rm: true
           strip_components: 0
 
       - name: Restart app via SSH
