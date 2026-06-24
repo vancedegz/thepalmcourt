@@ -56,25 +56,22 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           password: ${{ secrets.VM_PASSWORD }}
+          script_stop: true
           script: |
             # --- Install PM2 globally if not present ---
             if ! command -v pm2 &> /dev/null; then
               npm install -g pm2 || true
             fi
-
-            # --- Write .env if secrets are provided ---
-            if [ -n "${{ secrets.DATABASE_URL }}" ]; then
-              cat > ${{ secrets.VM_PATH }}/.env <<'ENVEOF'
-            DATABASE_URL="${{ secrets.DATABASE_URL }}"
-            NEXTAUTH_URL="${{ secrets.VM_NEXTAUTH_URL }}"
-            NEXTAUTH_SECRET="${{ secrets.VM_NEXTAUTH_SECRET }}"
-            UPLOADTHING_TOKEN="${{ secrets.UPLOADTHING_TOKEN }}"
-            ENVEOF
-            fi
-
+            # --- Write .env ---
+            printf 'DATABASE_URL="%s"\nNEXTAUTH_URL="%s"\nNEXTAUTH_SECRET="%s"\nUPLOADTHING_TOKEN="%s"\n' \
+              '${{ secrets.DATABASE_URL }}' \
+              '${{ secrets.VM_NEXTAUTH_URL }}' \
+              '${{ secrets.VM_NEXTAUTH_SECRET }}' \
+              '${{ secrets.UPLOADTHING_TOKEN }}' \
+              > ${{ secrets.VM_PATH }}/.env
             # --- Install deps, migrate, start app ---
             cd ${{ secrets.VM_PATH }}
-            npm install --production
+            npm install --omit=dev
             npx prisma generate
             npx prisma migrate deploy
             mkdir -p logs
