@@ -1,4 +1,4 @@
-name: Deploy to Virtualmin
+name: Deploy to Virtualmin # v2
 
 on:
   push:
