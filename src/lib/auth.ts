@@ -8,6 +8,7 @@ import type { JWT } from "next-auth/jwt"
 import type { Session, User } from "next-auth"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
