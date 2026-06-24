@@ -11,6 +11,7 @@ module.exports = {
       NEXTAUTH_URL: "https://thepalmcourt.ph",
       NEXTAUTH_SECRET: "SBq3y1Sq7oi7NaChH3zsLb6LSVTG7X1k5QeO6XuNvFk=",
       AUTH_SECRET: "SBq3y1Sq7oi7NaChH3zsLb6LSVTG7X1k5QeO6XuNvFk=",
+      AUTH_TRUST_HOST: "true",
       UPLOADTHING_TOKEN: "eyJhcGlLZXkiOiJza19saXZlX2RlMzE3MDc2YWVhNGJkNmZlNjZjNzFjYjcwZmMyNWZhNTZmMzZhNTM5NDU4ODgwMDRhYjBjMDg1MjczZjRiNTQiLCJhcHBJZCI6Imh5cnd5OXhlYzkiLCJyZWdpb25zIjpbInNlYTEiXX0=",
     },
     env_production: {
@@ -20,6 +21,7 @@ module.exports = {
       NEXTAUTH_URL: "https://thepalmcourt.ph",
       NEXTAUTH_SECRET: "SBq3y1Sq7oi7NaChH3zsLb6LSVTG7X1k5QeO6XuNvFk=",
       AUTH_SECRET: "SBq3y1Sq7oi7NaChH3zsLb6LSVTG7X1k5QeO6XuNvFk=",
+      AUTH_TRUST_HOST: "true",
       UPLOADTHING_TOKEN: "eyJhcGlLZXkiOiJza19saXZlX2RlMzE3MDc2YWVhNGJkNmZlNjZjNzFjYjcwZmMyNWZhNTZmMzZhNTM5NDU4ODgwMDRhYjBjMDg1MjczZjRiNTQiLCJhcHBJZCI6Imh5cnd5OXhlYzkiLCJyZWdpb25zIjpbInNlYTEiXX0=",
     },
     error_file: "./logs/err.log",
