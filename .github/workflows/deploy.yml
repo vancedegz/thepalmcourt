@@ -68,7 +68,7 @@ jobs:
               npm install -g pm2 || true
             fi
             # --- Write .env ---
-            printf 'DATABASE_URL="%s"\nNEXTAUTH_URL="%s"\nNEXTAUTH_SECRET="%s"\nAUTH_SECRET="%s"\nUPLOADTHING_TOKEN="%s"\n' \
+            printf 'DATABASE_URL="%s"\nNEXTAUTH_URL="%s"\nNEXTAUTH_SECRET="%s"\nAUTH_SECRET="%s"\nAUTH_TRUST_HOST="true"\nUPLOADTHING_TOKEN="%s"\n' \
               '${{ secrets.DATABASE_URL }}' \
               '${{ secrets.VM_NEXTAUTH_URL }}' \
               '${{ secrets.VM_NEXTAUTH_SECRET }}' \
