@@ -64,6 +64,8 @@ jobs:
               '${{ secrets.UPLOADTHING_TOKEN }}' \
               > ${{ secrets.VM_PATH }}/.env
             cd ${{ secrets.VM_PATH }}
+            # --- Clear previous build to avoid permission/corruption issues ---
+            rm -rf .next
             # --- Install all deps (including devDeps for build) ---
             npm install
             # --- Build on server so Prisma client matches ---
