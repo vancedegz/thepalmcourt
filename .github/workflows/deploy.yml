@@ -64,11 +64,9 @@ jobs:
               '${{ secrets.UPLOADTHING_TOKEN }}' \
               > ${{ secrets.VM_PATH }}/.env
             cd ${{ secrets.VM_PATH }}
-            # --- Archive previous build to avoid permission/corruption issues ---
-            # Deleting fails when PM2 owner differs from deploy user, so rename instead.
-            if [ -d .next ]; then
-              mv .next .next-bak-$(date +%s) || true
-            fi
+            # --- Clean previous build and any stale backups ---
+            rm -rf .next
+            rm -rf .next-bak-* 2>/dev/null || true
             # --- Install all deps (including devDeps for build) ---
             npm install
             # --- Build on server so Prisma client matches ---
