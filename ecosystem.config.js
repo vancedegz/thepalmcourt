@@ -1,7 +1,8 @@
 module.exports = {
   apps: [{
     name: "pickleball-courts",
-    script: "./.next/standalone/server.js",
+    script: "node_modules/next/dist/bin/next",
+    args: "start -p 3001",
     instances: 1,
     exec_mode: "fork",
     env: {
