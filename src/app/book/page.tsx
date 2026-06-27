@@ -168,12 +168,18 @@ export default function BookPage() {
     sel.setHours(0, 0, 0, 0)
     if (sel.getTime() !== today.getTime()) return false
 
+    const [slotHour] = time.split(":").map(Number)
+
+    // For overnight hours (e.g. 6 AM – 2 AM), slots before opening hour are on the next day
+    if (closingHour <= openingHour && slotHour < openingHour) {
+      return false
+    }
+
     // Get current hour in GMT+8
     const now = new Date()
     const gmt8 = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }))
     const currentHour = gmt8.getHours()
 
-    const [slotHour] = time.split(":").map(Number)
     return slotHour <= currentHour
   }
 
@@ -213,7 +219,9 @@ export default function BookPage() {
       for (let i = 0; i < sorted.length - 1; i++) {
         const [currentHour] = sorted[i].time.split(":").map(Number)
         const [nextHour] = sorted[i + 1].time.split(":").map(Number)
-        if (nextHour !== currentHour + 1) {
+        // Consecutive within same day, or wrapping past midnight (23 -> 0)
+        const isConsecutive = nextHour === currentHour + 1 || (currentHour === 23 && nextHour === 0)
+        if (!isConsecutive) {
           const courtName = courts.find((c) => c.id === courtId)?.name || "Selected court"
           setError(`${courtName}: Please select consecutive time slots`)
           return
