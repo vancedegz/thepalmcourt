@@ -135,10 +135,14 @@ export async function calculatePrice(startTime: string, endTime: string, date: D
   const [startHour] = startTime.split(":").map(Number)
   const [endHour] = endTime.split(":").map(Number)
   
+  // Support overnight hours (e.g. 23:00 – 02:00)
+  const hourCount = endHour <= startHour ? (24 - startHour) + endHour : endHour - startHour
+  
   const priceBreakdown = []
   let totalAmount = 0
 
-  for (let hour = startHour; hour < endHour; hour++) {
+  for (let i = 0; i < hourCount; i++) {
+    const hour = (startHour + i) % 24
     const hourStr = `${hour.toString().padStart(2, "0")}:00`
     
     // Find matching tier

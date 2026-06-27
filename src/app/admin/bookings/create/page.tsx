@@ -161,7 +161,9 @@ export default function AdminCreateBookingPage() {
 
   const generateTimeSlots = () => {
     const slots = []
-    for (let hour = openingHour; hour < closingHour; hour++) {
+    const count = closingHour <= openingHour ? (24 - openingHour) + closingHour : closingHour - openingHour
+    for (let i = 0; i < count; i++) {
+      const hour = (openingHour + i) % 24
       slots.push({ time: `${hour.toString().padStart(2, "0")}:00`, hour })
     }
     return slots

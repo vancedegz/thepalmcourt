@@ -118,7 +118,7 @@ export default function AdminCalendarPage() {
       const openH = parseInt(settings.openingTime.split(":")[0], 10)
       const closeH = parseInt(settings.closingTime.split(":")[0], 10)
 
-      if (Number.isNaN(openH) || Number.isNaN(closeH) || closeH <= openH) {
+      if (Number.isNaN(openH) || Number.isNaN(closeH)) {
         setHoursWarning(`Business hours are invalid (${settings.openingTime} – ${settings.closingTime}). Using defaults 6:00 AM – 10:00 PM. Please fix in Settings.`)
         setOpeningHour(6)
         setClosingHour(22)
@@ -350,8 +350,11 @@ export default function AdminCalendarPage() {
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 })
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
 
-  const slotCount = Math.max(0, closingHour - openingHour)
-  const timeSlots = Array.from({ length: slotCount }, (_, i) => openingHour + i)
+  // Support overnight hours (e.g. 6 AM – 2 AM): if closing <= opening, it means closing is next day
+  const slotCount = closingHour <= openingHour
+    ? (24 - openingHour) + closingHour
+    : closingHour - openingHour
+  const timeSlots = Array.from({ length: Math.max(0, slotCount) }, (_, i) => (openingHour + i) % 24)
   const displayedCourts = selectedCourt === "all" ? courts : courts.filter((c) => c.id === selectedCourt)
 
   return (

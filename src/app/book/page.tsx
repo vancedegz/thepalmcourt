@@ -13,7 +13,7 @@ import { getAvailableSlots } from "@/app/actions/bookings"
 import { calculatePrice, getBusinessSettings } from "@/app/actions/settings"
 import { createMultipleBookings } from "@/app/actions/bookings"
 import { format, addDays, isSameDay } from "date-fns"
-import { Calendar as CalendarIcon, Check, X } from "lucide-react"
+import { Calendar as CalendarIcon, Check } from "lucide-react"
 import { cn, formatTime } from "@/lib/utils"
 import type { Court } from "@prisma/client"
 
@@ -135,7 +135,9 @@ export default function BookPage() {
 
   const generateTimeSlots = () => {
     const slots = []
-    for (let hour = openingHour; hour < closingHour; hour++) {
+    const count = closingHour <= openingHour ? (24 - openingHour) + closingHour : closingHour - openingHour
+    for (let i = 0; i < count; i++) {
+      const hour = (openingHour + i) % 24
       slots.push({
         time: `${hour.toString().padStart(2, "0")}:00`,
         hour,
@@ -362,12 +364,14 @@ export default function BookPage() {
                               disabled={booked || past}
                               className={cn(
                                 "h-10 sm:h-12 rounded-lg border-2 transition-all duration-200 flex items-center justify-center font-medium shadow-sm hover:shadow-md cursor-pointer",
-                                (booked || past) && "bg-gradient-to-br from-gray-200 to-gray-100 border-gray-300 cursor-not-allowed opacity-60",
+                                booked && "bg-gradient-to-br from-red-100 to-red-50 border-red-200 cursor-not-allowed text-red-600",
+                                past && !booked && "bg-gradient-to-br from-gray-200 to-gray-100 border-gray-300 cursor-not-allowed opacity-60",
                                 !booked && !past && !selected && "bg-gradient-to-br from-[#e8f5e9] to-[#c8e6c9] border-[#16a34a]/40 hover:from-[#c8e6c9] hover:to-[#a5d6a7] hover:border-[#16a34a] cursor-pointer text-[#0a7c32]",
-                                selected && "bg-gradient-to-br from-primary to-primary/90 border-primary text-white hover:from-primary/90 hover:to-primary/80 ring-2 ring-primary/30 ring-offset-2"
+                                selected && "bg-gradient-to-br from-[#16a34a] to-[#0e8c3a] border-[#0e8c3a] text-white hover:from-[#0e8c3a] hover:to-[#0a7c32] ring-2 ring-[#16a34a]/30 ring-offset-2"
                               )}
                             >
-                              {(booked || past) && <X className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" />}
+                              {booked && <span className="text-[10px] sm:text-xs font-semibold">Booked</span>}
+                              {past && !booked && <span className="text-[10px] sm:text-xs text-gray-500">Closed</span>}
                               {selected && <Check className="h-4 w-4 sm:h-5 sm:w-5 font-bold" />}
                               {!booked && !past && !selected && <span className="text-[10px] sm:text-xs opacity-0 group-hover:opacity-100">Click</span>}
                             </button>
