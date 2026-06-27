@@ -70,16 +70,9 @@ async function assertSlotAvailable(
     const effectiveEndHour = bookingEndHour
 
     const bEffectiveEndHour = bSpansMidnight ? bEndHour + 24 : bEndHour
-    let bEffectiveStartHour = bStartHour
+    const bEffectiveStartHour = bStartHour
 
-    // If the existing booking is on the next day and it spans midnight, its start hour is on our date
-    // If the existing booking is on the next day and doesn't span midnight, its hours are shifted to next day
-    if (existing.indexOf(b) >= 0) {
-      // We don't know which date each booking is from because the query combined dates.
-      // We'll test both interpretations: assume it could be on our start date OR the next day.
-    }
-
-    // Simpler approach: compare time windows relative to the start date
+    // Compare time windows relative to the start date
     // A booking from next day (no midnight span) occupies hours 24..48
     // A booking from start date that spans midnight occupies up to hour 48
     const bStartsNextDay = bEffectiveStartHour < 24 && !bSpansMidnight
