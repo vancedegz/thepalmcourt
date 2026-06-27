@@ -65,7 +65,7 @@ jobs:
               > ${{ secrets.VM_PATH }}/.env
             cd ${{ secrets.VM_PATH }}
             # --- Clear previous build to avoid permission/corruption issues ---
-            rm -rf .next
+            sudo rm -rf .next 2>/dev/null || rm -rf .next || true
             # --- Install all deps (including devDeps for build) ---
             npm install
             # --- Build on server so Prisma client matches ---
