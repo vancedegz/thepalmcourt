@@ -202,29 +202,34 @@ export default function AdminCalendarPage() {
   }
 
   const getBookingForCell = (courtId: string, hour: number, date: Date) => {
-    const prevDay = subDays(date, 1)
+    // The calendar "business day" may wrap past midnight. Slots before opening hour are on the next calendar day.
+    const isOvernight = closingHour <= openingHour
+    const cellDate = new Date(date)
+    if (isOvernight && hour < openingHour) {
+      cellDate.setDate(cellDate.getDate() + 1)
+    }
+    cellDate.setHours(0, 0, 0, 0)
+    const cellStart = new Date(cellDate)
+    cellStart.setHours(hour, 0, 0, 0)
+
     return bookings.find((b) => {
       if (b.courtId !== courtId) return false
       if (b.status === "cancelled") return false
       const [startHour] = b.startTime.split(":").map(Number)
       const [endHour] = b.endTime.split(":").map(Number)
       const bookingDate = parseISO(b.date.toISOString())
+      bookingDate.setHours(0, 0, 0, 0)
       const spansMidnight = endHour <= startHour
-      const effectiveEndHour = spansMidnight ? endHour + 24 : endHour
 
-      // Same-day booking
-      if (isSameDay(bookingDate, date)) {
-        const effectiveHour = hour
-        return effectiveHour >= startHour && effectiveHour < effectiveEndHour
+      const bookingStart = new Date(bookingDate)
+      bookingStart.setHours(startHour, 0, 0, 0)
+      const bookingEnd = new Date(bookingDate)
+      if (spansMidnight) {
+        bookingEnd.setDate(bookingEnd.getDate() + 1)
       }
+      bookingEnd.setHours(endHour, 0, 0, 0)
 
-      // Previous-day booking that spans into this day
-      if (spansMidnight && isSameDay(bookingDate, prevDay)) {
-        const effectiveHour = hour + 24
-        return effectiveHour >= startHour && effectiveHour < effectiveEndHour
-      }
-
-      return false
+      return cellStart >= bookingStart && cellStart < bookingEnd
     })
   }
 
