@@ -246,15 +246,17 @@ export default function BookPage() {
     // Validate each court's slots are consecutive
     for (const [courtId, slots] of Object.entries(slotsByCourt)) {
       const sorted = [...slots].sort((a, b) => {
-        const [aHour] = a.time.split(":").map(Number)
-        const [bHour] = b.time.split(":").map(Number)
-        return aHour - bHour
+        const aDate = new Date(a.date).getTime() + parseInt(a.time) * 60 * 60 * 1000
+        const bDate = new Date(b.date).getTime() + parseInt(b.time) * 60 * 60 * 1000
+        return aDate - bDate
       })
       for (let i = 0; i < sorted.length - 1; i++) {
         const [currentHour] = sorted[i].time.split(":").map(Number)
         const [nextHour] = sorted[i + 1].time.split(":").map(Number)
+        const currentDate = new Date(sorted[i].date).getTime()
+        const nextDate = new Date(sorted[i + 1].date).getTime()
         // Consecutive within same day, or wrapping past midnight (23 -> 0)
-        const isConsecutive = nextHour === currentHour + 1 || (currentHour === 23 && nextHour === 0)
+        const isConsecutive = nextHour === currentHour + 1 || (currentHour === 23 && nextHour === 0 && nextDate > currentDate)
         if (!isConsecutive) {
           const courtName = courts.find((c) => c.id === courtId)?.name || "Selected court"
           setError(`${courtName}: Please select consecutive time slots`)
