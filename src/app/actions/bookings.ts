@@ -26,7 +26,9 @@ function generateReferenceNumber() {
 async function priceBooking(input: BookingInput) {
   const [startHour] = input.startTime.split(":").map(Number)
   const [endHour] = input.endTime.split(":").map(Number)
-  const durationHours = endHour - startHour
+  const durationHours = endHour <= startHour
+    ? (24 - startHour) + endHour
+    : endHour - startHour
   if (!Number.isFinite(durationHours) || durationHours <= 0) {
     throw new Error("Invalid time range")
   }
@@ -42,14 +44,55 @@ async function assertSlotAvailable(
   tx: Prisma.TransactionClient,
   input: BookingInput
 ) {
+  const [startHour] = input.startTime.split(":").map(Number)
+  const [endHour] = input.endTime.split(":").map(Number)
+  const bookingSpansMidnight = endHour <= startHour
+
+  const nextDay = new Date(input.date)
+  nextDay.setDate(nextDay.getDate() + 1)
+
   const existing = await tx.booking.findMany({
-    where: { courtId: input.courtId, date: input.date, status: { not: "cancelled" } },
+    where: {
+      courtId: input.courtId,
+      date: { in: [input.date, nextDay] },
+      status: { not: "cancelled" },
+    },
     select: { startTime: true, endTime: true },
   })
-  // Zero-padded "HH:00" strings compare correctly lexicographically.
-  const overlaps = existing.some(
-    (b) => input.startTime < b.endTime && input.endTime > b.startTime
-  )
+
+  const overlaps = existing.some((b) => {
+    const [bStartHour] = b.startTime.split(":").map(Number)
+    const [bEndHour] = b.endTime.split(":").map(Number)
+    const bSpansMidnight = bEndHour <= bStartHour
+
+    const bookingEndHour = bookingSpansMidnight ? endHour + 24 : endHour
+    const effectiveStartHour = startHour
+    const effectiveEndHour = bookingEndHour
+
+    const bEffectiveEndHour = bSpansMidnight ? bEndHour + 24 : bEndHour
+    let bEffectiveStartHour = bStartHour
+
+    // If the existing booking is on the next day and it spans midnight, its start hour is on our date
+    // If the existing booking is on the next day and doesn't span midnight, its hours are shifted to next day
+    if (existing.indexOf(b) >= 0) {
+      // We don't know which date each booking is from because the query combined dates.
+      // We'll test both interpretations: assume it could be on our start date OR the next day.
+    }
+
+    // Simpler approach: compare time windows relative to the start date
+    // A booking from next day (no midnight span) occupies hours 24..48
+    // A booking from start date that spans midnight occupies up to hour 48
+    const bStartsNextDay = bEffectiveStartHour < 24 && !bSpansMidnight
+    const bShift = bStartsNextDay ? 24 : 0
+
+    const s1 = effectiveStartHour
+    const e1 = effectiveEndHour
+    const s2 = bStartHour + bShift
+    const e2 = bEffectiveEndHour + bShift
+
+    return s1 < e2 && e1 > s2
+  })
+
   if (overlaps) {
     throw new Error("Selected time slot is no longer available")
   }
