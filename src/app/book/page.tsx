@@ -10,11 +10,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { getActiveCourts } from "@/app/actions/courts"
 import { getAvailableSlots } from "@/app/actions/bookings"
-import { calculatePrice } from "@/app/actions/settings"
+import { calculatePrice, getBusinessSettings } from "@/app/actions/settings"
 import { createMultipleBookings } from "@/app/actions/bookings"
 import { format, addDays, isSameDay } from "date-fns"
 import { Calendar as CalendarIcon, Check, X } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, formatTime } from "@/lib/utils"
 import type { Court } from "@prisma/client"
 
 function DateStrip({
@@ -111,6 +111,13 @@ export default function BookPage() {
   useEffect(() => {
     async function run() {
       await loadCourts()
+      try {
+        const settings = await getBusinessSettings()
+        if (settings?.openingTime) setOpeningHour(parseInt(settings.openingTime.split(":")[0], 10))
+        if (settings?.closingTime) setClosingHour(parseInt(settings.closingTime.split(":")[0], 10))
+      } catch {
+        // fallback to defaults
+      }
     }
     run()
   }, [])
@@ -124,9 +131,12 @@ export default function BookPage() {
     }
   }, [selectedDate, courts, loadAllBookings])
 
+  const [openingHour, setOpeningHour] = useState(6)
+  const [closingHour, setClosingHour] = useState(22)
+
   const generateTimeSlots = () => {
     const slots = []
-    for (let hour = 6; hour < 22; hour++) {
+    for (let hour = openingHour; hour < closingHour; hour++) {
       slots.push({
         time: `${hour.toString().padStart(2, "0")}:00`,
         hour,
@@ -234,8 +244,10 @@ export default function BookPage() {
       }
       setPriceInfo(courtPrices)
       setShowSummary(true)
-    } catch {
-      setError("Failed to calculate price")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to calculate price"
+      console.error("[calculatePrice error]", err)
+      setError(msg)
     }
   }
 
@@ -337,7 +349,7 @@ export default function BookPage() {
                     {timeSlots.map((slot) => (
                       <div key={slot.time} className="grid grid-cols-[80px_repeat(auto-fit,minmax(100px,1fr))] sm:grid-cols-[100px_repeat(auto-fit,minmax(120px,1fr))] gap-2">
                         <div className="flex items-center font-semibold text-xs sm:text-sm text-gray-800 bg-gray-50 px-2 sm:px-3 rounded-lg border border-gray-200">
-                          {slot.time}
+                          {formatTime(slot.time)}
                         </div>
                         {courts.map((court) => {
                           const booked = isSlotBooked(court.id, slot.time)
@@ -403,12 +415,12 @@ export default function BookPage() {
                     <Badge variant="outline">{courtPrice.durationHours}h</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mb-2">
-                    {courtPrice.startTime} - {courtPrice.endTime}
+                    {formatTime(courtPrice.startTime)} - {formatTime(courtPrice.endTime)}
                   </p>
                   <div className="space-y-1">
                     {courtPrice.priceBreakdown.map((item, i) => (
                       <div key={i} className="flex justify-between text-sm">
-                        <span>{item.hour} <Badge variant="outline" className="ml-1 text-[10px]">{item.tier}</Badge></span>
+                        <span>{formatTime(item.hour)} <Badge variant="outline" className="ml-1 text-[10px]">{item.tier}</Badge></span>
                         <span className="font-medium">₱{item.price}</span>
                       </div>
                     ))}

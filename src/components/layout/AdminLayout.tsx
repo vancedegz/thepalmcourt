@@ -19,6 +19,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   LayoutDashboard,
   Calendar,
+  CalendarDays,
   CreditCard,
   Settings,
   LogOut,
@@ -35,6 +36,7 @@ const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Courts", href: "/admin/courts", icon: MapPin },
   { name: "Bookings", href: "/admin/bookings", icon: Calendar },
+  { name: "Calendar", href: "/admin/calendar", icon: CalendarDays },
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "POS", href: "/admin/pos", icon: ShoppingCart },
   { name: "Users", href: "/admin/users", icon: UserCircle },

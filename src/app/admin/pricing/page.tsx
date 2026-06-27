@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getPricingTiers, upsertPricingTier, deletePricingTier } from "@/app/actions/settings"
-import { cn } from "@/lib/utils"
+import { cn, formatTime } from "@/lib/utils"
 import { Plus, Edit, Trash2, Banknote, Clock, Calendar } from "lucide-react"
 import type { PricingTier } from "@prisma/client"
 
@@ -253,7 +253,7 @@ export default function AdminPricingPage() {
                       <CardTitle>{tier.name}</CardTitle>
                       <CardDescription className="flex items-center gap-1 mt-1">
                         <Clock className="h-3 w-3" />
-                        {tier.startTime} - {tier.endTime}
+                        {formatTime(tier.startTime)} - {formatTime(tier.endTime)}
                       </CardDescription>
                     </div>
                   </div>

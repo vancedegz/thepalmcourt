@@ -13,10 +13,10 @@ import { Label } from "@/components/ui/label"
 import { searchUsers } from "@/app/actions/users"
 import { getActiveCourts } from "@/app/actions/courts"
 import { getAvailableSlots, createAdminBooking } from "@/app/actions/bookings"
-import { calculatePrice } from "@/app/actions/settings"
+import { calculatePrice, getBusinessSettings } from "@/app/actions/settings"
 import { format, addDays, isSameDay } from "date-fns"
 import { Calendar as CalendarIcon, Check, X, Search, User, Phone, UserPlus } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, formatTime } from "@/lib/utils"
 import type { Court, User as UserType } from "@prisma/client"
 
 type SearchUser = Pick<UserType, "id" | "username" | "email" | "firstName" | "lastName" | "phone">
@@ -119,6 +119,13 @@ export default function AdminCreateBookingPage() {
   useEffect(() => {
     async function run() {
       await loadCourts()
+      try {
+        const settings = await getBusinessSettings()
+        if (settings?.openingTime) setOpeningHour(parseInt(settings.openingTime.split(":")[0], 10))
+        if (settings?.closingTime) setClosingHour(parseInt(settings.closingTime.split(":")[0], 10))
+      } catch {
+        // fallback to defaults
+      }
     }
     run()
   }, [])
@@ -150,9 +157,12 @@ export default function AdminCreateBookingPage() {
     return () => clearTimeout(timer)
   }, [searchQuery, isManual])
 
+  const [openingHour, setOpeningHour] = useState(6)
+  const [closingHour, setClosingHour] = useState(22)
+
   const generateTimeSlots = () => {
     const slots = []
-    for (let hour = 6; hour < 22; hour++) {
+    for (let hour = openingHour; hour < closingHour; hour++) {
       slots.push({ time: `${hour.toString().padStart(2, "0")}:00`, hour })
     }
     return slots
@@ -235,8 +245,10 @@ export default function AdminCreateBookingPage() {
       const info = await calculatePrice(startTime, endTime, selectedDate!)
       setPriceInfo(info)
       setShowSummary(true)
-    } catch {
-      setError("Failed to calculate price")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to calculate price"
+      console.error("[calculatePrice error]", err)
+      setError(msg)
     }
   }
 
@@ -485,7 +497,7 @@ export default function AdminCreateBookingPage() {
                     >
                       {(booked || past) && <X className="h-3 w-3 text-gray-500" />}
                       {selected && <Check className="h-4 w-4" />}
-                      {!booked && !past && !selected && <span className="text-sm">{slot.time}</span>}
+                      {!booked && !past && !selected && <span className="text-sm">{formatTime(slot.time)}</span>}
                     </button>
                   )
                 })}
@@ -544,7 +556,7 @@ export default function AdminCreateBookingPage() {
                     const start = sorted[0]
                     const [lastHour] = sorted[sorted.length - 1].split(":").map(Number)
                     const end = `${(lastHour + 1).toString().padStart(2, "0")}:00`
-                    return `${start} - ${end}`
+                    return `${formatTime(start)} - ${formatTime(end)}`
                   })()}
                 </p>
               </div>
@@ -556,7 +568,7 @@ export default function AdminCreateBookingPage() {
                       {priceInfo.priceBreakdown.map((item, index) => (
                         <div key={index} className="flex justify-between text-sm">
                           <span>
-                            {item.hour} <Badge variant="outline" className="ml-1">{item.tier}</Badge>
+                            {formatTime(item.hour)} <Badge variant="outline" className="ml-1">{item.tier}</Badge>
                           </span>
                           <span className="font-medium">₱{item.price}</span>
                         </div>

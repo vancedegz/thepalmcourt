@@ -167,6 +167,19 @@ export async function cancelBooking(bookingId: string) {
   revalidatePath("/my-bookings")
 }
 
+export async function confirmBooking(bookingId: string) {
+  await requireStaff()
+
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: { status: "confirmed" },
+  })
+
+  revalidatePath("/admin/bookings")
+  revalidatePath("/admin/calendar")
+  revalidatePath("/my-bookings")
+}
+
 export async function getMyBookings() {
   const session = await requireUser()
 
@@ -209,6 +222,36 @@ export async function getAllBookings(page = 1, pageSize = 20) {
   ])
 
   return { bookings, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
+}
+
+export async function getBookingsByDateRange(startDate: Date, endDate: Date) {
+  await requireStaff()
+
+  const bookings = await prisma.booking.findMany({
+    where: {
+      date: {
+        gte: startDate,
+        lte: endDate,
+      },
+      status: { not: "cancelled" },
+    },
+    include: {
+      court: true,
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+        },
+      },
+      payments: true,
+    },
+    orderBy: { startTime: "asc" },
+  })
+
+  return bookings
 }
 
 export async function getAvailableSlots(courtId: string, date: Date) {

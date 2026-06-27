@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { cn } from "@/lib/utils"
+import { cn, formatTime } from "@/lib/utils"
 import { getMyBookings } from "@/app/actions/bookings"
 import { uploadPaymentScreenshot } from "@/app/actions/payments"
 import { format } from "date-fns"
@@ -157,7 +157,7 @@ export default function MyBookingsPage() {
                       <div className="flex items-center gap-2 text-sm">
                         <Clock className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">Time:</span>
-                        <span>{booking.startTime} - {booking.endTime}</span>
+                        <span>{formatTime(booking.startTime)} - {formatTime(booking.endTime)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <span className="font-medium">Duration:</span>
