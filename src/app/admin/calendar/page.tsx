@@ -188,23 +188,43 @@ export default function AdminCalendarPage() {
   }
 
   const getBookingsForDay = (date: Date) => {
+    const prevDay = subDays(date, 1)
     return bookings.filter((b) => {
       const bookingDate = parseISO(b.date.toISOString())
-      if (!isSameDay(bookingDate, date)) return false
       if (selectedCourt !== "all" && b.courtId !== selectedCourt) return false
-      return true
+      if (isSameDay(bookingDate, date)) return true
+      // Include previous-day bookings that span midnight into this day
+      const [startHour] = b.startTime.split(":").map(Number)
+      const [endHour] = b.endTime.split(":").map(Number)
+      if (isSameDay(bookingDate, prevDay) && endHour <= startHour) return true
+      return false
     })
   }
 
   const getBookingForCell = (courtId: string, hour: number, date: Date) => {
+    const prevDay = subDays(date, 1)
     return bookings.find((b) => {
-      const bookingDate = parseISO(b.date.toISOString())
-      if (!isSameDay(bookingDate, date)) return false
       if (b.courtId !== courtId) return false
       if (b.status === "cancelled") return false
       const [startHour] = b.startTime.split(":").map(Number)
       const [endHour] = b.endTime.split(":").map(Number)
-      return hour >= startHour && hour < endHour
+      const bookingDate = parseISO(b.date.toISOString())
+      const spansMidnight = endHour <= startHour
+      const effectiveEndHour = spansMidnight ? endHour + 24 : endHour
+
+      // Same-day booking
+      if (isSameDay(bookingDate, date)) {
+        const effectiveHour = hour
+        return effectiveHour >= startHour && effectiveHour < effectiveEndHour
+      }
+
+      // Previous-day booking that spans into this day
+      if (spansMidnight && isSameDay(bookingDate, prevDay)) {
+        const effectiveHour = hour + 24
+        return effectiveHour >= startHour && effectiveHour < effectiveEndHour
+      }
+
+      return false
     })
   }
 
