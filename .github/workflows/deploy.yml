@@ -74,8 +74,10 @@ jobs:
             # --- Build on server so Prisma client matches ---
             DATABASE_URL="${{ secrets.DATABASE_URL }}" AUTH_SECRET="${{ secrets.VM_NEXTAUTH_SECRET }}" npm run build
             # --- Copy assets into standalone ---
-            cp -r .next/static .next/standalone/.next/static
-            cp -r public .next/standalone/public
+            mkdir -p .next/standalone/.next/static
+            cp -r .next/static/* .next/standalone/.next/static/
+            mkdir -p .next/standalone/public
+            cp -r public/* .next/standalone/public/ 2>/dev/null || true
             # --- Migrate DB ---
             npx prisma migrate deploy
             mkdir -p logs
