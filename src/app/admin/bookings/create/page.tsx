@@ -95,6 +95,8 @@ export default function AdminCreateBookingPage() {
   const [manualName, setManualName] = useState("")
   const [manualPhone, setManualPhone] = useState("")
   const [searching, setSearching] = useState(false)
+  const [openingHour, setOpeningHour] = useState(6)
+  const [closingHour, setClosingHour] = useState(22)
 
   const loadCourts = async () => {
     try {
@@ -156,9 +158,6 @@ export default function AdminCreateBookingPage() {
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery, isManual])
-
-  const [openingHour, setOpeningHour] = useState(6)
-  const [closingHour, setClosingHour] = useState(22)
 
   const generateTimeSlots = () => {
     const slots = []

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import AdminLayout from "@/components/layout/AdminLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -33,7 +33,7 @@ export default function AdminBookingsPage() {
   const [total, setTotal] = useState(0)
   const [statusFilter, setStatusFilter] = useState<string>("all")
 
-  const loadBookings = async (p: number) => {
+  const loadBookings = useCallback(async (p: number) => {
     try {
       const data = await getAllBookings(p)
       let filtered = data.bookings as BookingWithDetails[]
@@ -49,18 +49,11 @@ export default function AdminBookingsPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  useEffect(() => {
-    async function run() {
-      await loadBookings(1)
-    }
-    run()
-  }, [])
+  }, [statusFilter])
 
   useEffect(() => {
     loadBookings(page)
-  }, [statusFilter])
+  }, [statusFilter, page, loadBookings])
 
   const handleCancel = async (bookingId: string) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return

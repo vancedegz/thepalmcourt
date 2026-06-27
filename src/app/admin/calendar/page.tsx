@@ -42,7 +42,6 @@ import {
   LayoutGrid,
   Columns3,
   Search,
-  User,
   Phone,
   UserPlus,
 } from "lucide-react"
@@ -77,7 +76,6 @@ export default function AdminCalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [bookings, setBookings] = useState<BookingWithDetails[]>([])
   const [courts, setCourts] = useState<Court[]>([])
-  const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedCourt, setSelectedCourt] = useState<string>("all")
   const [openingHour, setOpeningHour] = useState(6)
@@ -135,7 +133,6 @@ export default function AdminCalendarPage() {
   }
 
   const loadBookings = useCallback(async () => {
-    setLoading(true)
     try {
       let start: Date, end: Date
       if (view === "month") {
@@ -154,8 +151,6 @@ export default function AdminCalendarPage() {
       setBookings(data as BookingWithDetails[])
     } catch (err) {
       console.error("Failed to load bookings:", err)
-    } finally {
-      setLoading(false)
     }
   }, [currentDate, view])
 

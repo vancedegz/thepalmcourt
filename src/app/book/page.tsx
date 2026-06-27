@@ -84,6 +84,8 @@ export default function BookPage() {
   >(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [openingHour, setOpeningHour] = useState(6)
+  const [closingHour, setClosingHour] = useState(22)
 
   const loadCourts = async () => {
     try {
@@ -130,9 +132,6 @@ export default function BookPage() {
       run()
     }
   }, [selectedDate, courts, loadAllBookings])
-
-  const [openingHour, setOpeningHour] = useState(6)
-  const [closingHour, setClosingHour] = useState(22)
 
   const generateTimeSlots = () => {
     const slots = []
