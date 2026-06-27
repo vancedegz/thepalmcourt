@@ -64,6 +64,7 @@ interface CourtBookings {
   [courtId: string]: {
     startTime: string
     endTime: string
+    date: Date
   }[]
 }
 
@@ -76,10 +77,10 @@ export default function BookPage() {
     return d
   })
   const [courtBookings, setCourtBookings] = useState<CourtBookings>({})
-  const [selectedSlots, setSelectedSlots] = useState<{ courtId: string; time: string }[]>([])
+  const [selectedSlots, setSelectedSlots] = useState<{ courtId: string; time: string; date: Date }[]>([])
   const [showSummary, setShowSummary] = useState(false)
   const [priceInfo, setPriceInfo] = useState<
-    | { courtId: string; courtName: string; startTime: string; endTime: string; durationHours: number; totalAmount: number; priceBreakdown: { hour: string; price: number; tier: string }[] }[]
+    | { courtId: string; courtName: string; startDate: Date; endDate: Date; startTime: string; endTime: string; durationHours: number; totalAmount: number; priceBreakdown: { hour: string; price: number; tier: string }[] }[]
     | null
   >(null)
   const [loading, setLoading] = useState(false)
@@ -101,8 +102,17 @@ export default function BookPage() {
     try {
       const bookingsMap: CourtBookings = {}
       for (const court of courts) {
-        const slots = await getAvailableSlots(court.id, selectedDate)
-        bookingsMap[court.id] = slots
+        // Load bookings for selected date AND next day (for overnight slots)
+        const nextDay = new Date(selectedDate)
+        nextDay.setDate(nextDay.getDate() + 1)
+        const [day1, day2] = await Promise.all([
+          getAvailableSlots(court.id, selectedDate),
+          getAvailableSlots(court.id, nextDay),
+        ])
+        bookingsMap[court.id] = [
+          ...day1.map((b) => ({ ...b, date: selectedDate })),
+          ...day2.map((b) => ({ ...b, date: nextDay })),
+        ]
       }
       setCourtBookings(bookingsMap)
     } catch {
@@ -133,49 +143,73 @@ export default function BookPage() {
     }
   }, [selectedDate, courts, loadAllBookings])
 
+  const getSlotDate = (time: string) => {
+    if (!selectedDate) return new Date()
+    const [hour] = time.split(":").map(Number)
+    // For overnight hours, slots before opening hour belong to the next day
+    const slotDate = new Date(selectedDate)
+    if (closingHour <= openingHour && hour < openingHour) {
+      slotDate.setDate(slotDate.getDate() + 1)
+    }
+    slotDate.setHours(0, 0, 0, 0)
+    return slotDate
+  }
+
   const generateTimeSlots = () => {
     const slots = []
     const count = closingHour <= openingHour ? (24 - openingHour) + closingHour : closingHour - openingHour
     for (let i = 0; i < count; i++) {
       const hour = (openingHour + i) % 24
+      const time = `${hour.toString().padStart(2, "0")}:00`
       slots.push({
-        time: `${hour.toString().padStart(2, "0")}:00`,
+        time,
         hour,
+        date: getSlotDate(time),
       })
     }
     return slots
   }
 
-  const isSlotBooked = (courtId: string, time: string) => {
+  const isSlotBooked = (courtId: string, time: string, date: Date) => {
     const bookings = courtBookings[courtId] || []
     const [hour] = time.split(":").map(Number)
     return bookings.some((booking) => {
       const [startHour] = booking.startTime.split(":").map(Number)
       const [endHour] = booking.endTime.split(":").map(Number)
-      return hour >= startHour && hour < endHour
+      const bookingDate = new Date(booking.date)
+      bookingDate.setHours(0, 0, 0, 0)
+      const slotDate = new Date(date)
+      slotDate.setHours(0, 0, 0, 0)
+      // If booking wraps past midnight, it also occupies the next day's early hours
+      const bookingSpansMidnight = endHour <= startHour
+      const sameDay = bookingDate.getTime() === slotDate.getTime()
+      const nextDay = new Date(bookingDate)
+      nextDay.setDate(nextDay.getDate() + 1)
+      const matchesNextDay = nextDay.getTime() === slotDate.getTime()
+      if (!sameDay && !(bookingSpansMidnight && matchesNextDay)) return false
+      // Normalize hour within the booking span
+      const effectiveEndHour = bookingSpansMidnight ? endHour + 24 : endHour
+      let effectiveSlotHour = hour
+      if (bookingSpansMidnight && matchesNextDay) effectiveSlotHour += 24
+      return effectiveSlotHour >= startHour && effectiveSlotHour < effectiveEndHour
     })
   }
 
-  const isSlotSelected = (courtId: string, time: string) => {
-    return selectedSlots.some((slot) => slot.courtId === courtId && slot.time === time)
+  const isSlotSelected = (courtId: string, time: string, date: Date) => {
+    return selectedSlots.some((slot) => slot.courtId === courtId && slot.time === time && slot.date.getTime() === date.getTime())
   }
 
-  const isSlotPast = (time: string) => {
-    if (!selectedDate) return false
+  const isSlotPast = (time: string, date: Date) => {
+    const slotDate = new Date(date)
+    slotDate.setHours(0, 0, 0, 0)
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const sel = new Date(selectedDate)
-    sel.setHours(0, 0, 0, 0)
-    if (sel.getTime() !== today.getTime()) return false
+    if (slotDate.getTime() > today.getTime()) return false
+    if (slotDate.getTime() < today.getTime()) return true
 
+    // Slot is today — compare current hour
     const [slotHour] = time.split(":").map(Number)
-
-    // For overnight hours (e.g. 6 AM – 2 AM), slots before opening hour are on the next day
-    if (closingHour <= openingHour && slotHour < openingHour) {
-      return false
-    }
-
-    // Get current hour in GMT+8
     const now = new Date()
     const gmt8 = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }))
     const currentHour = gmt8.getHours()
@@ -183,15 +217,15 @@ export default function BookPage() {
     return slotHour <= currentHour
   }
 
-  const handleSlotClick = (courtId: string, time: string) => {
-    if (isSlotBooked(courtId, time) || isSlotPast(time)) return
+  const handleSlotClick = (courtId: string, time: string, date: Date) => {
+    if (isSlotBooked(courtId, time, date) || isSlotPast(time, date)) return
 
-    const isSelected = isSlotSelected(courtId, time)
+    const isSelected = isSlotSelected(courtId, time, date)
 
     if (isSelected) {
-      setSelectedSlots(selectedSlots.filter((s) => !(s.courtId === courtId && s.time === time)))
+      setSelectedSlots(selectedSlots.filter((s) => !(s.courtId === courtId && s.time === time && s.date.getTime() === date.getTime())))
     } else {
-      setSelectedSlots([...selectedSlots, { courtId, time }])
+      setSelectedSlots([...selectedSlots, { courtId, time, date }])
     }
     setError("")
   }
@@ -233,18 +267,23 @@ export default function BookPage() {
     const courtPrices: NonNullable<typeof priceInfo> = []
     try {
       for (const [courtId, slots] of Object.entries(slotsByCourt)) {
+        // Sort by actual datetime (date + time), not just hour
         const sorted = [...slots].sort((a, b) => {
-          const [aHour] = a.time.split(":").map(Number)
-          const [bHour] = b.time.split(":").map(Number)
-          return aHour - bHour
+          const aDate = new Date(a.date).getTime() + parseInt(a.time) * 60 * 60 * 1000
+          const bDate = new Date(b.date).getTime() + parseInt(b.time) * 60 * 60 * 1000
+          return aDate - bDate
         })
         const startTime = sorted[0].time
+        const startDate = sorted[0].date
         const [lastHour] = sorted[sorted.length - 1].time.split(":").map(Number)
         const endTime = `${(lastHour + 1).toString().padStart(2, "0")}:00`
-        const info = await calculatePrice(startTime, endTime, selectedDate!)
+        const endDate = sorted[sorted.length - 1].date
+        const info = await calculatePrice(startTime, endTime, startDate)
         courtPrices.push({
           courtId,
           courtName: courts.find((c) => c.id === courtId)?.name || "Court",
+          startDate,
+          endDate,
           startTime,
           endTime,
           durationHours: slots.length,
@@ -265,7 +304,7 @@ export default function BookPage() {
 
     const bookings = priceInfo.map((courtPrice) => ({
       courtId: courtPrice.courtId,
-      date: selectedDate,
+      date: courtPrice.startDate,
       startTime: courtPrice.startTime,
       endTime: courtPrice.endTime,
       durationHours: courtPrice.durationHours,
@@ -361,14 +400,14 @@ export default function BookPage() {
                           {formatTime(slot.time)}
                         </div>
                         {courts.map((court) => {
-                          const booked = isSlotBooked(court.id, slot.time)
-                          const selected = isSlotSelected(court.id, slot.time)
-                          const past = isSlotPast(slot.time)
+                          const booked = isSlotBooked(court.id, slot.time, slot.date)
+                          const selected = isSlotSelected(court.id, slot.time, slot.date)
+                          const past = isSlotPast(slot.time, slot.date)
 
                           return (
                             <button
-                              key={`${court.id}-${slot.time}`}
-                              onClick={() => handleSlotClick(court.id, slot.time)}
+                              key={`${court.id}-${slot.time}-${slot.date.toISOString()}`}
+                              onClick={() => handleSlotClick(court.id, slot.time, slot.date)}
                               disabled={booked || past}
                               className={cn(
                                 "h-10 sm:h-12 rounded-lg border-2 transition-all duration-200 flex items-center justify-center font-medium shadow-sm hover:shadow-md cursor-pointer",
@@ -414,20 +453,20 @@ export default function BookPage() {
               <DialogDescription>Review your booking details before confirming</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Date</p>
-                <p className="font-medium">{selectedDate && format(selectedDate, "MMMM dd, yyyy")}</p>
-              </div>
-
               {priceInfo && Array.isArray(priceInfo) && priceInfo.map((courtPrice) => (
                 <div key={courtPrice.courtId} className="border rounded-lg p-4 bg-gray-50">
                   <div className="flex justify-between items-center mb-2">
                     <p className="font-semibold text-[#16a34a]">{courtPrice.courtName}</p>
                     <Badge variant="outline">{courtPrice.durationHours}h</Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {formatTime(courtPrice.startTime)} - {formatTime(courtPrice.endTime)}
+                  <p className="text-sm text-muted-foreground mb-1">
+                    {format(courtPrice.startDate, "MMMM dd, yyyy")} {formatTime(courtPrice.startTime)} - {formatTime(courtPrice.endTime)}
                   </p>
+                  {courtPrice.startDate.getTime() !== courtPrice.endDate.getTime() && (
+                    <p className="text-xs text-muted-foreground">
+                      Ends {format(courtPrice.endDate, "MMMM dd, yyyy")}
+                    </p>
+                  )}
                   <div className="space-y-1">
                     {courtPrice.priceBreakdown.map((item, i) => (
                       <div key={i} className="flex justify-between text-sm">
