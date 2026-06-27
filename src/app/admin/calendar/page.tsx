@@ -307,7 +307,9 @@ export default function AdminCalendarPage() {
     }
 
     const [startHour] = createStartTime.split(":").map(Number)
-    const endTime = `${(startHour + createDuration).toString().padStart(2, "0")}:00`
+    const rawEndHour = startHour + createDuration
+    const endHour = rawEndHour >= 24 ? rawEndHour - 24 : rawEndHour
+    const endTime = `${endHour.toString().padStart(2, "0")}:00`
 
     setCreateLoading(true)
     setCreateError("")
@@ -628,7 +630,14 @@ export default function AdminCalendarPage() {
                                   )}
                                 >
                                   <div className="truncate">{booking.user.firstName} {booking.user.lastName}</div>
-                                  <div className="truncate opacity-80">{formatTime(booking.startTime)} – {formatTime(booking.endTime)}</div>
+                                  <div className="truncate opacity-80">
+                                    {formatTime(booking.startTime)} – {formatTime(booking.endTime)}
+                                    {(() => {
+                                      const [sH] = booking.startTime.split(":").map(Number)
+                                      const [eH] = booking.endTime.split(":").map(Number)
+                                      return eH <= sH ? " (+1 day)" : null
+                                    })()}
+                                  </div>
                                 </div>
                               ) : (
                                 <button
