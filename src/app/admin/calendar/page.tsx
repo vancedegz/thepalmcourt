@@ -125,7 +125,7 @@ export default function AdminCalendarPage() {
       } else {
         setHoursWarning("")
         setOpeningHour(openH)
-        setClosingHour(closeH)
+        setClosingHour(closeH <= openH ? closeH + 24 : closeH)
       }
     } catch {
       // fallback to defaults
@@ -144,7 +144,8 @@ export default function AdminCalendarPage() {
       } else {
         start = new Date(currentDate)
         start.setHours(0, 0, 0, 0)
-        end = new Date(currentDate)
+        // extend to next-day end so overnight (post-midnight) slots stored on next day are included
+        end = addDays(new Date(currentDate), 1)
         end.setHours(23, 59, 59, 999)
       }
       const data = await getBookingsByDateRange(start, end)
@@ -188,48 +189,28 @@ export default function AdminCalendarPage() {
   }
 
   const getBookingsForDay = (date: Date) => {
-    const prevDay = subDays(date, 1)
     return bookings.filter((b) => {
-      const bookingDate = parseISO(b.date.toISOString())
       if (selectedCourt !== "all" && b.courtId !== selectedCourt) return false
-      if (isSameDay(bookingDate, date)) return true
-      // Include previous-day bookings that span midnight into this day
-      const [startHour] = b.startTime.split(":").map(Number)
-      const [endHour] = b.endTime.split(":").map(Number)
-      if (isSameDay(bookingDate, prevDay) && endHour <= startHour) return true
-      return false
+      const bookingDate = parseISO(b.date.toISOString())
+      return isSameDay(bookingDate, date)
     })
   }
 
   const getBookingForCell = (courtId: string, hour: number, date: Date) => {
-    // The calendar "business day" may wrap past midnight. Slots before opening hour are on the next calendar day.
-    const isOvernight = closingHour <= openingHour
     const cellDate = new Date(date)
-    if (isOvernight && hour < openingHour) {
-      cellDate.setDate(cellDate.getDate() + 1)
-    }
     cellDate.setHours(0, 0, 0, 0)
-    const cellStart = new Date(cellDate)
-    cellStart.setHours(hour, 0, 0, 0)
 
     return bookings.find((b) => {
       if (b.courtId !== courtId) return false
       if (b.status === "cancelled") return false
-      const [startHour] = b.startTime.split(":").map(Number)
-      const [endHour] = b.endTime.split(":").map(Number)
       const bookingDate = parseISO(b.date.toISOString())
       bookingDate.setHours(0, 0, 0, 0)
-      const spansMidnight = endHour <= startHour
-
-      const bookingStart = new Date(bookingDate)
-      bookingStart.setHours(startHour, 0, 0, 0)
-      const bookingEnd = new Date(bookingDate)
-      if (spansMidnight) {
-        bookingEnd.setDate(bookingEnd.getDate() + 1)
-      }
-      bookingEnd.setHours(endHour, 0, 0, 0)
-
-      return cellStart >= bookingStart && cellStart < bookingEnd
+      if (bookingDate.getTime() !== cellDate.getTime()) return false
+      const [startHour] = b.startTime.split(":").map(Number)
+      const [endHour] = b.endTime.split(":").map(Number)
+      const effectiveEnd = endHour <= startHour ? endHour + 24 : endHour
+      const normalHour = hour % 24
+      return normalHour >= startHour && normalHour < effectiveEnd
     })
   }
 
@@ -307,8 +288,7 @@ export default function AdminCalendarPage() {
     }
 
     const [startHour] = createStartTime.split(":").map(Number)
-    const rawEndHour = startHour + createDuration
-    const endHour = rawEndHour >= 24 ? rawEndHour - 24 : rawEndHour
+    const endHour = (startHour + createDuration) % 24
     const endTime = `${endHour.toString().padStart(2, "0")}:00`
 
     setCreateLoading(true)
@@ -377,11 +357,8 @@ export default function AdminCalendarPage() {
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 })
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
 
-  // Support overnight hours (e.g. 6 AM – 2 AM): if closing <= opening, it means closing is next day
-  const slotCount = closingHour <= openingHour
-    ? (24 - openingHour) + closingHour
-    : closingHour - openingHour
-  const timeSlots = Array.from({ length: Math.max(0, slotCount) }, (_, i) => (openingHour + i) % 24)
+  const slotCount = Math.max(0, closingHour - openingHour)
+  const timeSlots = Array.from({ length: slotCount }, (_, i) => openingHour + i) // hours may exceed 23 for overnight
   const displayedCourts = selectedCourt === "all" ? courts : courts.filter((c) => c.id === selectedCourt)
 
   return (
@@ -611,19 +588,21 @@ export default function AdminCalendarPage() {
                 </thead>
                 <tbody>
                   {timeSlots.map((hour) => {
-                    const timeStr = `${hour.toString().padStart(2, "0")}:00`
+                    const timeStr = `${(hour % 24).toString().padStart(2, "0")}:00`
+                    const slotDate = hour >= 24 ? addDays(currentDate, 1) : currentDate
                     return (
                       <tr key={hour} className="border-b last:border-b-0 hover:bg-gray-50/50">
                         <td className="py-3 px-2 text-center text-sm font-medium text-gray-700 border-r bg-gray-50/30">
-                          {formatTime(timeStr)}
+                          <div>{formatTime(timeStr)}</div>
+                          {hour >= 24 && <div className="text-[10px] text-orange-500 font-medium">next day</div>}
                         </td>
                         {displayedCourts.map((court) => {
-                          const booking = getBookingForCell(court.id, hour, currentDate)
+                          const booking = getBookingForCell(court.id, hour % 24, slotDate)
                           return (
                             <td key={court.id} className="p-1.5 border-r last:border-r-0 min-h-[60px]">
                               {booking ? (
                                 <div
-                                  onClick={() => setSelectedDate(currentDate)}
+                                  onClick={() => setSelectedDate(slotDate)}
                                   className={cn(
                                     "rounded p-2 text-white text-[11px] font-medium cursor-pointer hover:opacity-90 transition-opacity",
                                     statusColors[booking.status] || "bg-gray-400"
@@ -632,16 +611,11 @@ export default function AdminCalendarPage() {
                                   <div className="truncate">{booking.user.firstName} {booking.user.lastName}</div>
                                   <div className="truncate opacity-80">
                                     {formatTime(booking.startTime)} – {formatTime(booking.endTime)}
-                                    {(() => {
-                                      const [sH] = booking.startTime.split(":").map(Number)
-                                      const [eH] = booking.endTime.split(":").map(Number)
-                                      return eH <= sH ? " (+1 day)" : null
-                                    })()}
                                   </div>
                                 </div>
                               ) : (
                                 <button
-                                  onClick={() => openCreateDialog(currentDate, court.id, timeStr)}
+                                  onClick={() => openCreateDialog(slotDate, court.id, timeStr)}
                                   className="w-full h-full min-h-[48px] flex items-center justify-center rounded hover:bg-[#e8f5e9] hover:border-[#16a34a]/30 border border-transparent transition-colors cursor-pointer"
                                   title={`Book ${court.name} at ${formatTime(timeStr)}`}
                                 >
@@ -783,7 +757,7 @@ export default function AdminCalendarPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {timeSlots.map((h) => {
-                        const t = `${h.toString().padStart(2, "0")}:00`
+                        const t = `${(h % 24).toString().padStart(2, "0")}:00`
                         return <SelectItem key={t} value={t}>{formatTime(t)}</SelectItem>
                       })}
                     </SelectContent>

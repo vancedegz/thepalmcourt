@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { useSession, signOut } from "next-auth/react"
-import { SITE } from "@/lib/constants"
+import { useBusinessSettings } from "@/lib/business-settings-context"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -52,6 +52,7 @@ export default function AdminLayout({
   const { data: session } = useSession()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { name, logoUrl } = useBusinessSettings()
 
   return (
     <div className="min-h-screen bg-background">
@@ -65,8 +66,8 @@ export default function AdminLayout({
           <div className="flex items-center justify-between p-4 border-b">
             <div className="flex items-center space-x-3">
               <Image
-                src={SITE.logoUrl}
-                alt={SITE.name}
+                src={logoUrl}
+                alt={name}
                 width={40}
                 height={40}
                 className="h-10 w-10 object-contain"
@@ -108,8 +109,8 @@ export default function AdminLayout({
       <div className="max-lg:hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:block lg:w-64 lg:overflow-y-auto bg-white border-r border-gray-200 shadow-sm">
         <div className="flex items-center space-x-3 p-4 border-b">
           <Image
-            src={SITE.logoUrl}
-            alt={SITE.name}
+            src={logoUrl}
+            alt={name}
             width={40}
             height={40}
             className="h-10 w-10 object-contain"

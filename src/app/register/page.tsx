@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { SITE } from "@/lib/constants"
+import { useBusinessSettings } from "@/lib/business-settings-context"
 import PublicLayout from "@/components/layout/PublicLayout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +26,7 @@ export default function RegisterPage() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { name, logoUrl } = useBusinessSettings()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -84,8 +85,8 @@ export default function RegisterPage() {
             <div className="flex justify-center mb-4">
               <div className="w-20 h-20 rounded-full bg-white border-4 border-primary/20 p-1 shadow-lg">
                 <Image
-                  src={SITE.logoUrl}
-                  alt={SITE.name}
+                  src={logoUrl}
+                  alt={name}
                   width={80}
                   height={80}
                   className="w-full h-full object-contain rounded-full"
@@ -94,7 +95,7 @@ export default function RegisterPage() {
             </div>
             <CardTitle className="text-2xl text-[#16a34a]">Create Account</CardTitle>
             <CardDescription>
-              Join {SITE.name} to start booking courts
+              Join {name} to start booking courts
             </CardDescription>
           </CardHeader>
           <CardContent>

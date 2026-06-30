@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useState } from "react"
-import { SITE } from "@/lib/constants"
+import { useBusinessSettings } from "@/lib/business-settings-context"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 
@@ -13,6 +13,7 @@ export default function PublicLayout({
   children: React.ReactNode
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { name, logoUrl } = useBusinessSettings()
 
   return (
     <div className="min-h-screen bg-background">
@@ -22,13 +23,13 @@ export default function PublicLayout({
             <div className="flex items-center">
               <Link href="/" className="flex items-center space-x-2 sm:space-x-3">
                 <Image
-                  src={SITE.logoUrl}
-                  alt={SITE.name}
+                  src={logoUrl}
+                  alt={name}
                   width={48}
                   height={48}
                   className="h-9 w-9 sm:h-12 sm:w-12 object-contain"
                 />
-                <span className="text-lg sm:text-xl font-bold text-[#16a34a]">{SITE.name}</span>
+                <span className="text-lg sm:text-xl font-bold text-[#16a34a]">{name}</span>
               </Link>
             </div>
             {/* Desktop nav */}

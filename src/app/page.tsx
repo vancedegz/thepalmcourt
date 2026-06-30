@@ -1,13 +1,82 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import PublicLayout from "@/components/layout/PublicLayout"
-import { SITE } from "@/lib/constants"
+import { useBusinessSettings } from "@/lib/business-settings-context"
+import { getPricingTiers } from "@/app/actions/settings"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, MapPin, Phone, Mail, CheckCircle, Calendar, CreditCard, Sun, Sunset, Moon } from "lucide-react"
+import { formatTime } from "@/lib/utils"
+import type { PricingTier } from "@prisma/client"
+
+function formatHourRange(openingTime: string, closingTime: string): string {
+  const openH = parseInt(openingTime.split(":")[0] ?? "6", 10)
+  const closeH = parseInt(closingTime.split(":")[0] ?? "22", 10)
+  const effectiveClose = closeH <= openH ? closeH + 24 : closeH
+  const fmt = (h: number) => {
+    const hh = h % 24
+    const period = hh < 12 ? "AM" : "PM"
+    const display = hh % 12 === 0 ? 12 : hh % 12
+    return `${display} ${period}`
+  }
+  return `${fmt(openH)} to ${fmt(effectiveClose)}`
+}
 
 export default function HomePage() {
+  const { name, logoUrl, settings } = useBusinessSettings()
+  const [tiers, setTiers] = useState<PricingTier[]>([])
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await getPricingTiers()
+        setTiers(data.filter((t) => t.isActive))
+      } catch {
+        // ignore — fallback to defaults
+      }
+    }
+    load()
+  }, [])
+
+  const phone = settings?.phone ?? "+63 917 123 4567"
+  const email = settings?.email ?? "info@thepalmcourt.com"
+  const address = settings?.address ?? "General Santos, Philippines"
+  const hoursLabel = settings
+    ? formatHourRange(settings.openingTime, settings.closingTime)
+    : "6:00 AM to 10:00 PM"
+
+  // Build a stable list of pricing cards: prefer active tiers, fall back to defaults.
+  const pricingCards = tiers.length > 0
+    ? tiers.map((tier, i) => {
+        const icons = [Sun, Sunset, Moon]
+        const Icon = icons[i % icons.length]
+        const colors = [
+          { bg: "from-[#c8e6c9] to-[#e8f5e9]", text: "text-[#16a34a]", border: "border-primary/10" },
+          { bg: "from-[#ffedd5] to-[#fff7ed]", text: "text-[#f97316]", border: "border-primary" },
+          { bg: "from-[#056b28] to-[#0a7c32]", text: "text-[#056b28]", border: "border-primary/10" },
+        ]
+        const c = colors[i % colors.length]
+        return {
+          id: tier.id,
+          name: tier.name,
+          price: tier.pricePerHour,
+          range: `${formatTime(tier.startTime)} - ${formatTime(tier.endTime)}`,
+          days: Array.isArray(tier.daysOfWeek) ? tier.daysOfWeek.join(", ") : "All week",
+          Icon,
+          c,
+          popular: i === 1,
+        }
+      })
+    : [
+        { id: "default-morning", name: "Morning", price: 200, range: "6:00 AM - 12:00 PM", days: "All week", Icon: Sun, c: { bg: "from-[#c8e6c9] to-[#e8f5e9]", text: "text-[#16a34a]", border: "border-primary/10" }, popular: false },
+        { id: "default-afternoon", name: "Afternoon", price: 250, range: "12:00 PM - 6:00 PM", days: "All week", Icon: Sunset, c: { bg: "from-[#ffedd5] to-[#fff7ed]", text: "text-[#f97316]", border: "border-primary" }, popular: true },
+        { id: "default-evening", name: "Evening", price: 300, range: "6:00 PM - 10:00 PM", days: "All week", Icon: Moon, c: { bg: "from-[#056b28] to-[#0a7c32]", text: "text-[#056b28]", border: "border-primary/10" }, popular: false },
+      ]
+
   return (
     <PublicLayout>
       {/* Hero Section */}
@@ -19,8 +88,8 @@ export default function HomePage() {
             <div className="flex justify-center mb-8">
               <div className="bg-white/20 backdrop-blur-sm rounded-full p-6 border-2 border-white/30">
                 <Image
-                  src={SITE.logoUrl}
-                  alt={SITE.name}
+                  src={logoUrl}
+                  alt={name}
                   width={128}
                   height={128}
                   className="h-24 w-24 md:h-32 md:w-32 object-contain"
@@ -31,7 +100,7 @@ export default function HomePage() {
               Where the Game <span className="text-[#fed7aa]">Meets</span> The Vibe
             </h1>
             <p className="text-lg sm:text-xl md:text-2xl mb-3 sm:mb-4 max-w-3xl mx-auto text-white/90">
-              Book your premium pickleball court at The Palm Court
+              Book your premium pickleball court at {name}
             </p>
             <p className="text-base sm:text-lg mb-8 sm:mb-10 max-w-2xl mx-auto text-white/80">
               Premium courts with tropical atmosphere. Easy reservations, flexible scheduling, and exceptional facilities in the heart of General Santos.
@@ -83,7 +152,7 @@ export default function HomePage() {
                 </div>
                 <CardTitle className="text-xl">Flexible Hours</CardTitle>
                 <CardDescription className="text-base">
-                  Open from 6 AM to 10 PM daily. Book morning, afternoon, or evening slots that fit your schedule.
+                  Open from {hoursLabel} daily. Book morning, afternoon, or evening slots that fit your schedule.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -204,82 +273,46 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            <Card className="text-center border-2 border-primary/10 hover:border-primary/30 hover:shadow-xl transition-all">
-              <CardHeader className="pb-2">
-                <div className="flex justify-center mb-4">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#c8e6c9] to-[#e8f5e9] flex items-center justify-center">
-                    <Sun className="h-8 w-8 text-[#16a34a]" />
-                  </div>
-                </div>
-                <CardTitle className="text-2xl">Morning</CardTitle>
-                <div className="text-4xl font-bold text-[#16a34a]">₱200</div>
-                <CardDescription>per hour</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-left">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#16a34a]" />
-                    6:00 AM - 12:00 PM
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#16a34a]" />
-                    All week
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
-            <Card className="text-center border-2 border-primary relative overflow-hidden hover:shadow-xl transition-all md:transform md:-translate-y-4">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#16a34a] to-[#f97316]"></div>
-              <div className="absolute top-4 right-4">
-                <Badge className="bg-[#f97316] text-white">Popular</Badge>
-              </div>
-              <CardHeader className="pb-2">
-                <div className="flex justify-center mb-4">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#ffedd5] to-[#fff7ed] flex items-center justify-center">
-                    <Sunset className="h-8 w-8 text-[#f97316]" />
-                  </div>
-                </div>
-                <CardTitle className="text-2xl">Afternoon</CardTitle>
-                <div className="text-4xl font-bold text-[#f97316]">₱250</div>
-                <CardDescription>per hour</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-left">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#f97316]" />
-                    12:00 PM - 6:00 PM
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#f97316]" />
-                    All week
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
-            <Card className="text-center border-2 border-primary/10 hover:border-primary/30 hover:shadow-xl transition-all">
-              <CardHeader className="pb-2">
-                <div className="flex justify-center mb-4">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#056b28] to-[#0a7c32] flex items-center justify-center">
-                    <Moon className="h-8 w-8 text-white" />
-                  </div>
-                </div>
-                <CardTitle className="text-2xl">Evening</CardTitle>
-                <div className="text-4xl font-bold text-[#056b28]">₱300</div>
-                <CardDescription>per hour</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-left">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#056b28]" />
-                    6:00 PM - 10:00 PM
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-[#056b28]" />
-                    All week
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
+            {pricingCards.map((card, i) => {
+              const Icon = card.Icon
+              const cardClass = i === 1
+                ? "text-center border-2 border-primary relative overflow-hidden hover:shadow-xl transition-all md:transform md:-translate-y-4"
+                : `text-center border-2 ${card.c.border} hover:border-primary/30 hover:shadow-xl transition-all`
+              return (
+                <Card key={card.id} className={cardClass}>
+                  {card.popular && (
+                    <>
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#16a34a] to-[#f97316]"></div>
+                      <div className="absolute top-4 right-4">
+                        <Badge className="bg-[#f97316] text-white">Popular</Badge>
+                      </div>
+                    </>
+                  )}
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-center mb-4">
+                      <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${card.c.bg} flex items-center justify-center`}>
+                        <Icon className={`h-8 w-8 ${card.c.text}`} />
+                      </div>
+                    </div>
+                    <CardTitle className="text-2xl">{card.name}</CardTitle>
+                    <div className={`text-4xl font-bold ${card.c.text}`}>₱{card.price}</div>
+                    <CardDescription>per hour</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2 text-left">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className={`h-4 w-4 ${card.c.text}`} />
+                        {card.range}
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className={`h-4 w-4 ${card.c.text}`} />
+                        {card.days}
+                      </li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -302,7 +335,7 @@ export default function HomePage() {
                   <Phone className="h-7 w-7 text-[#f97316]" />
                 </div>
                 <CardTitle className="text-white">Phone</CardTitle>
-                <CardDescription className="text-white/80 text-base">+63 917 123 4567</CardDescription>
+                <CardDescription className="text-white/80 text-base">{phone}</CardDescription>
               </CardHeader>
             </Card>
             <Card className="bg-white/10 border-white/20 backdrop-blur-sm text-white hover:bg-white/20 transition-all">
@@ -311,7 +344,7 @@ export default function HomePage() {
                   <Mail className="h-7 w-7 text-[#f97316]" />
                 </div>
                 <CardTitle className="text-white">Email</CardTitle>
-                <CardDescription className="text-white/80 text-base">info@thepalmcourt.com</CardDescription>
+                <CardDescription className="text-white/80 text-base">{email}</CardDescription>
               </CardHeader>
             </Card>
             <Card className="bg-white/10 border-white/20 backdrop-blur-sm text-white hover:bg-white/20 transition-all">
@@ -320,7 +353,7 @@ export default function HomePage() {
                   <MapPin className="h-7 w-7 text-[#f97316]" />
                 </div>
                 <CardTitle className="text-white">Location</CardTitle>
-                <CardDescription className="text-white/80 text-base">General Santos, Philippines</CardDescription>
+                <CardDescription className="text-white/80 text-base">{address}</CardDescription>
               </CardHeader>
             </Card>
           </div>

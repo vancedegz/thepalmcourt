@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useSession, signOut } from "next-auth/react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { SITE } from "@/lib/constants"
+import { useBusinessSettings } from "@/lib/business-settings-context"
 import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ export default function CustomerLayout({
 }) {
   const { data: session } = useSession()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { name, logoUrl } = useBusinessSettings()
 
   return (
     <div className="min-h-screen bg-background">
@@ -33,13 +34,13 @@ export default function CustomerLayout({
             <div className="flex items-center">
               <Link href="/book" className="flex items-center space-x-2 sm:space-x-3">
                 <Image
-                  src={SITE.logoUrl}
-                  alt={SITE.name}
+                  src={logoUrl}
+                  alt={name}
                   width={40}
                   height={40}
                   className="h-9 w-9 sm:h-10 sm:w-10 object-contain"
                 />
-                <span className="text-lg sm:text-xl font-bold text-[#16a34a]">{SITE.name}</span>
+                <span className="text-lg sm:text-xl font-bold text-[#16a34a]">{name}</span>
               </Link>
             </div>
             {/* Desktop nav */}

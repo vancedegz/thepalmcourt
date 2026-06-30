@@ -93,9 +93,10 @@ model Booking {
   durationHours  Int        // 1
   totalAmount    Int        // 250
   priceBreakdown Json       // [{"hour": 1, "price": 250, "tier": "Afternoon"}]
-  status         BookingStatus @default(pending)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  status          BookingStatus @default(pending)
+  paymentDeadline DateTime?  // 15 min after creation for customer bookings; null = no expiry
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   court    Court     @relation(fields: [courtId], references: [id], onDelete: Cascade)

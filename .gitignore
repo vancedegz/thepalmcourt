@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/test-results
 
 # next.js
 /.next/
@@ -29,6 +30,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# runtime logs (generated on the server)
+/logs
 
 # env files (can opt-in for committing if needed)
 .env*

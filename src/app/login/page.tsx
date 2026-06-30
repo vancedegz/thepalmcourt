@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { SITE } from "@/lib/constants"
+import { useBusinessSettings } from "@/lib/business-settings-context"
 import PublicLayout from "@/components/layout/PublicLayout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { name, logoUrl } = useBusinessSettings()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,8 +61,8 @@ export default function LoginPage() {
             <div className="flex justify-center mb-4">
               <div className="w-20 h-20 rounded-full bg-white border-4 border-primary/20 p-1 shadow-lg">
                 <Image
-                  src={SITE.logoUrl}
-                  alt={SITE.name}
+                  src={logoUrl}
+                  alt={name}
                   width={80}
                   height={80}
                   className="w-full h-full object-contain rounded-full"
@@ -70,7 +71,7 @@ export default function LoginPage() {
             </div>
             <CardTitle className="text-2xl text-[#16a34a]">Welcome Back</CardTitle>
             <CardDescription>
-              Sign in to your {SITE.name} account
+              Sign in to your {name} account
             </CardDescription>
           </CardHeader>
           <CardContent>

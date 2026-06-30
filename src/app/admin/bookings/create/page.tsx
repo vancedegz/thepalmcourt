@@ -123,8 +123,10 @@ export default function AdminCreateBookingPage() {
       await loadCourts()
       try {
         const settings = await getBusinessSettings()
-        if (settings?.openingTime) setOpeningHour(parseInt(settings.openingTime.split(":")[0], 10))
-        if (settings?.closingTime) setClosingHour(parseInt(settings.closingTime.split(":")[0], 10))
+        const openH = settings?.openingTime ? parseInt(settings.openingTime.split(":")[0], 10) : 6
+        const closeH = settings?.closingTime ? parseInt(settings.closingTime.split(":")[0], 10) : 22
+        setOpeningHour(openH)
+        setClosingHour(closeH <= openH ? closeH + 24 : closeH)
       } catch {
         // fallback to defaults
       }
@@ -161,10 +163,10 @@ export default function AdminCreateBookingPage() {
 
   const generateTimeSlots = () => {
     const slots = []
-    const count = closingHour <= openingHour ? (24 - openingHour) + closingHour : closingHour - openingHour
+    const count = closingHour - openingHour
     for (let i = 0; i < count; i++) {
-      const hour = (openingHour + i) % 24
-      slots.push({ time: `${hour.toString().padStart(2, "0")}:00`, hour })
+      const hour = openingHour + i
+      slots.push({ time: `${(hour % 24).toString().padStart(2, "0")}:00`, hour })
     }
     return slots
   }
@@ -172,10 +174,10 @@ export default function AdminCreateBookingPage() {
   const isSlotBooked = (courtId: string, time: string) => {
     const bookings = courtBookings[courtId] || []
     const [hour] = time.split(":").map(Number)
-    return bookings.some((booking) => {
-      const [startHour] = booking.startTime.split(":").map(Number)
-      const [endHour] = booking.endTime.split(":").map(Number)
-      return hour >= startHour && hour < endHour
+    return bookings.some((b) => {
+      const [bStart] = b.startTime.split(":").map(Number)
+      const [bEnd] = b.endTime.split(":").map(Number)
+      return hour >= bStart && hour < bEnd
     })
   }
 
@@ -240,7 +242,7 @@ export default function AdminCreateBookingPage() {
 
     const startTime = sorted[0]
     const [lastHour] = sorted[sorted.length - 1].split(":").map(Number)
-    const endTime = `${(lastHour + 1).toString().padStart(2, "0")}:00`
+    const endTime = `${((lastHour + 1) % 24).toString().padStart(2, "0")}:00`
 
     try {
       const info = await calculatePrice(startTime, endTime, selectedDate!)
@@ -263,7 +265,7 @@ export default function AdminCreateBookingPage() {
     })
     const startTime = sorted[0]
     const [lastHour] = sorted[sorted.length - 1].split(":").map(Number)
-    const endTime = `${(lastHour + 1).toString().padStart(2, "0")}:00`
+    const endTime = `${((lastHour + 1) % 24).toString().padStart(2, "0")}:00`
 
     setLoading(true)
     setError("")

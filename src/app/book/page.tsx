@@ -12,6 +12,7 @@ import { getActiveCourts } from "@/app/actions/courts"
 import { getAvailableSlots } from "@/app/actions/bookings"
 import { calculatePrice, getBusinessSettings } from "@/app/actions/settings"
 import { createMultipleBookings } from "@/app/actions/bookings"
+import { useBusinessSettings } from "@/lib/business-settings-context"
 import { format, addDays, isSameDay } from "date-fns"
 import { Calendar as CalendarIcon, Check } from "lucide-react"
 import { cn, formatTime } from "@/lib/utils"
@@ -61,10 +62,9 @@ function DateStrip({
 }
 
 interface CourtBookings {
-  [courtId: string]: {
+  [courtIdDate: string]: {
     startTime: string
     endTime: string
-    date: Date
   }[]
 }
 
@@ -77,7 +77,7 @@ export default function BookPage() {
     return d
   })
   const [courtBookings, setCourtBookings] = useState<CourtBookings>({})
-  const [selectedSlots, setSelectedSlots] = useState<{ courtId: string; time: string; date: Date }[]>([])
+  const [selectedSlots, setSelectedSlots] = useState<{ courtId: string; time: string; date: Date; hour: number }[]>([])
   const [showSummary, setShowSummary] = useState(false)
   const [priceInfo, setPriceInfo] = useState<
     | { courtId: string; courtName: string; startDate: Date; endDate: Date; startTime: string; endTime: string; durationHours: number; totalAmount: number; priceBreakdown: { hour: string; price: number; tier: string }[] }[]
@@ -87,6 +87,7 @@ export default function BookPage() {
   const [error, setError] = useState("")
   const [openingHour, setOpeningHour] = useState(6)
   const [closingHour, setClosingHour] = useState(22)
+  const { settings: businessSettings } = useBusinessSettings()
 
   const loadCourts = async () => {
     try {
@@ -101,19 +102,17 @@ export default function BookPage() {
     if (!selectedDate) return
     try {
       const bookingsMap: CourtBookings = {}
-      for (const court of courts) {
-        // Load bookings for selected date AND next day (for overnight slots)
-        const nextDay = new Date(selectedDate)
-        nextDay.setDate(nextDay.getDate() + 1)
-        const [day1, day2] = await Promise.all([
-          getAvailableSlots(court.id, selectedDate),
-          getAvailableSlots(court.id, nextDay),
+      const nextDay = addDays(selectedDate, 1)
+      await Promise.all(
+        courts.flatMap((court) => [
+          getAvailableSlots(court.id, selectedDate).then((slots) => {
+            bookingsMap[`${court.id}:${selectedDate.toISOString()}`] = slots
+          }),
+          getAvailableSlots(court.id, nextDay).then((slots) => {
+            bookingsMap[`${court.id}:${nextDay.toISOString()}`] = slots
+          }),
         ])
-        bookingsMap[court.id] = [
-          ...day1.map((b) => ({ ...b, date: selectedDate })),
-          ...day2.map((b) => ({ ...b, date: nextDay })),
-        ]
-      }
+      )
       setCourtBookings(bookingsMap)
     } catch {
       setError("Failed to load bookings")
@@ -125,8 +124,10 @@ export default function BookPage() {
       await loadCourts()
       try {
         const settings = await getBusinessSettings()
-        if (settings?.openingTime) setOpeningHour(parseInt(settings.openingTime.split(":")[0], 10))
-        if (settings?.closingTime) setClosingHour(parseInt(settings.closingTime.split(":")[0], 10))
+        const openH = settings?.openingTime ? parseInt(settings.openingTime.split(":")[0], 10) : 6
+        const closeH = settings?.closingTime ? parseInt(settings.closingTime.split(":")[0], 10) : 22
+        setOpeningHour(openH)
+        setClosingHour(closeH <= openH ? closeH + 24 : closeH)
       } catch {
         // fallback to defaults
       }
@@ -143,60 +144,37 @@ export default function BookPage() {
     }
   }, [selectedDate, courts, loadAllBookings])
 
-  const getSlotDate = (time: string) => {
-    if (!selectedDate) return new Date()
-    const [hour] = time.split(":").map(Number)
-    // For overnight hours, slots before opening hour belong to the next day
-    const slotDate = new Date(selectedDate)
-    if (closingHour <= openingHour && hour < openingHour) {
-      slotDate.setDate(slotDate.getDate() + 1)
-    }
-    slotDate.setHours(0, 0, 0, 0)
-    return slotDate
-  }
-
   const generateTimeSlots = () => {
+    if (!selectedDate) return []
     const slots = []
-    const count = closingHour <= openingHour ? (24 - openingHour) + closingHour : closingHour - openingHour
+    const count = closingHour - openingHour
     for (let i = 0; i < count; i++) {
-      const hour = (openingHour + i) % 24
-      const time = `${hour.toString().padStart(2, "0")}:00`
+      const hour = openingHour + i
+      const time = `${(hour % 24).toString().padStart(2, "0")}:00`
+      const date = hour >= 24 ? addDays(selectedDate, 1) : selectedDate
       slots.push({
         time,
         hour,
-        date: getSlotDate(time),
+        date,
       })
     }
     return slots
   }
 
-  const isSlotBooked = (courtId: string, time: string, date: Date) => {
-    const bookings = courtBookings[courtId] || []
+  const isSlotBooked = (courtId: string, time: string, slotDate: Date) => {
+    const key = `${courtId}:${slotDate.toISOString()}`
+    const bookings = courtBookings[key] || []
     const [hour] = time.split(":").map(Number)
     return bookings.some((booking) => {
       const [startHour] = booking.startTime.split(":").map(Number)
       const [endHour] = booking.endTime.split(":").map(Number)
-      const bookingDate = new Date(booking.date)
-      bookingDate.setHours(0, 0, 0, 0)
-      const slotDate = new Date(date)
-      slotDate.setHours(0, 0, 0, 0)
-      // If booking wraps past midnight, it also occupies the next day's early hours
-      const bookingSpansMidnight = endHour <= startHour
-      const sameDay = bookingDate.getTime() === slotDate.getTime()
-      const nextDay = new Date(bookingDate)
-      nextDay.setDate(nextDay.getDate() + 1)
-      const matchesNextDay = nextDay.getTime() === slotDate.getTime()
-      if (!sameDay && !(bookingSpansMidnight && matchesNextDay)) return false
-      // Normalize hour within the booking span
-      const effectiveEndHour = bookingSpansMidnight ? endHour + 24 : endHour
-      let effectiveSlotHour = hour
-      if (bookingSpansMidnight && matchesNextDay) effectiveSlotHour += 24
-      return effectiveSlotHour >= startHour && effectiveSlotHour < effectiveEndHour
+      const effectiveEnd = endHour <= startHour ? endHour + 24 : endHour
+      return hour >= startHour && hour < effectiveEnd
     })
   }
 
-  const isSlotSelected = (courtId: string, time: string, date: Date) => {
-    return selectedSlots.some((slot) => slot.courtId === courtId && slot.time === time && slot.date.getTime() === date.getTime())
+  const isSlotSelected = (courtId: string, time: string) => {
+    return selectedSlots.some((slot) => slot.courtId === courtId && slot.time === time)
   }
 
   const isSlotPast = (time: string, date: Date) => {
@@ -211,8 +189,9 @@ export default function BookPage() {
     // Slot is today — compare current hour
     const [slotHour] = time.split(":").map(Number)
     const now = new Date()
-    const gmt8 = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }))
-    const currentHour = gmt8.getHours()
+    const tz = businessSettings?.timezone || "Asia/Manila"
+    const tzNow = new Date(now.toLocaleString("en-US", { timeZone: tz }))
+    const currentHour = tzNow.getHours()
 
     return slotHour <= currentHour
   }
@@ -220,12 +199,13 @@ export default function BookPage() {
   const handleSlotClick = (courtId: string, time: string, date: Date) => {
     if (isSlotBooked(courtId, time, date) || isSlotPast(time, date)) return
 
-    const isSelected = isSlotSelected(courtId, time, date)
+    const isSelected = isSlotSelected(courtId, time)
 
     if (isSelected) {
-      setSelectedSlots(selectedSlots.filter((s) => !(s.courtId === courtId && s.time === time && s.date.getTime() === date.getTime())))
+      setSelectedSlots(selectedSlots.filter((s) => !(s.courtId === courtId && s.time === time)))
     } else {
-      setSelectedSlots([...selectedSlots, { courtId, time, date }])
+      const slotHour = generateTimeSlots().find((s) => s.time === time && s.date.toISOString() === date.toISOString())?.hour ?? parseInt(time.split(":")[0], 10)
+      setSelectedSlots([...selectedSlots, { courtId, time, date, hour: slotHour }])
     }
     setError("")
   }
@@ -245,19 +225,10 @@ export default function BookPage() {
 
     // Validate each court's slots are consecutive
     for (const [courtId, slots] of Object.entries(slotsByCourt)) {
-      const sorted = [...slots].sort((a, b) => {
-        const aDate = new Date(a.date).getTime() + parseInt(a.time) * 60 * 60 * 1000
-        const bDate = new Date(b.date).getTime() + parseInt(b.time) * 60 * 60 * 1000
-        return aDate - bDate
-      })
+      // Sort by raw hour (slot.hour preserves overnight ordering: 22, 23, 24, 25...)
+      const sorted = [...slots].sort((a, b) => a.hour - b.hour)
       for (let i = 0; i < sorted.length - 1; i++) {
-        const [currentHour] = sorted[i].time.split(":").map(Number)
-        const [nextHour] = sorted[i + 1].time.split(":").map(Number)
-        const currentDate = new Date(sorted[i].date).getTime()
-        const nextDate = new Date(sorted[i + 1].date).getTime()
-        // Consecutive within same day, or wrapping past midnight (23 -> 0)
-        const isConsecutive = nextHour === currentHour + 1 || (currentHour === 23 && nextHour === 0 && nextDate > currentDate)
-        if (!isConsecutive) {
+        if (sorted[i + 1].hour !== sorted[i].hour + 1) {
           const courtName = courts.find((c) => c.id === courtId)?.name || "Selected court"
           setError(`${courtName}: Please select consecutive time slots`)
           return
@@ -269,16 +240,11 @@ export default function BookPage() {
     const courtPrices: NonNullable<typeof priceInfo> = []
     try {
       for (const [courtId, slots] of Object.entries(slotsByCourt)) {
-        // Sort by actual datetime (date + time), not just hour
-        const sorted = [...slots].sort((a, b) => {
-          const aDate = new Date(a.date).getTime() + parseInt(a.time) * 60 * 60 * 1000
-          const bDate = new Date(b.date).getTime() + parseInt(b.time) * 60 * 60 * 1000
-          return aDate - bDate
-        })
+        const sorted = [...slots].sort((a, b) => a.hour - b.hour)
         const startTime = sorted[0].time
         const startDate = sorted[0].date
-        const [lastHour] = sorted[sorted.length - 1].time.split(":").map(Number)
-        const endTime = `${(lastHour + 1).toString().padStart(2, "0")}:00`
+        const lastSlotHour = sorted[sorted.length - 1].hour
+        const endTime = `${((lastSlotHour + 1) % 24).toString().padStart(2, "0")}:00`
         const endDate = sorted[sorted.length - 1].date
         const info = await calculatePrice(startTime, endTime, startDate)
         courtPrices.push({
@@ -403,7 +369,7 @@ export default function BookPage() {
                         </div>
                         {courts.map((court) => {
                           const booked = isSlotBooked(court.id, slot.time, slot.date)
-                          const selected = isSlotSelected(court.id, slot.time, slot.date)
+                          const selected = isSlotSelected(court.id, slot.time)
                           const past = isSlotPast(slot.time, slot.date)
 
                           return (
@@ -483,6 +449,23 @@ export default function BookPage() {
                   </div>
                 </div>
               ))}
+
+              {(businessSettings?.paymentInstructions || businessSettings?.bankDetails) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2 text-sm">
+                  {businessSettings.paymentInstructions && (
+                    <div>
+                      <p className="font-semibold text-amber-900 mb-0.5">Payment Instructions</p>
+                      <p className="text-amber-800 whitespace-pre-line">{businessSettings.paymentInstructions}</p>
+                    </div>
+                  )}
+                  {businessSettings.bankDetails && (
+                    <div>
+                      <p className="font-semibold text-amber-900 mb-0.5">Bank Details</p>
+                      <p className="text-amber-800 whitespace-pre-line">{businessSettings.bankDetails}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {priceInfo && Array.isArray(priceInfo) && (
                 <div className="border-t pt-4">

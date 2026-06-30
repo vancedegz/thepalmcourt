@@ -26,9 +26,8 @@ function generateReferenceNumber() {
 async function priceBooking(input: BookingInput) {
   const [startHour] = input.startTime.split(":").map(Number)
   const [endHour] = input.endTime.split(":").map(Number)
-  const durationHours = endHour <= startHour
-    ? (24 - startHour) + endHour
-    : endHour - startHour
+  const effectiveEndHour = endHour <= startHour ? endHour + 24 : endHour
+  const durationHours = effectiveEndHour - startHour
   if (!Number.isFinite(durationHours) || durationHours <= 0) {
     throw new Error("Invalid time range")
   }
@@ -46,44 +45,34 @@ async function assertSlotAvailable(
 ) {
   const [startHour] = input.startTime.split(":").map(Number)
   const [endHour] = input.endTime.split(":").map(Number)
-  const bookingSpansMidnight = endHour <= startHour
 
-  const nextDay = new Date(input.date)
-  nextDay.setDate(nextDay.getDate() + 1)
+  const dayStart = new Date(input.date)
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(input.date)
+  dayEnd.setHours(23, 59, 59, 999)
 
   const existing = await tx.booking.findMany({
     where: {
       courtId: input.courtId,
-      date: { in: [input.date, nextDay] },
+      date: { gte: dayStart, lte: dayEnd },
       status: { not: "cancelled" },
     },
     select: { startTime: true, endTime: true },
   })
 
+  const effectiveEnd = endHour <= startHour ? endHour + 24 : endHour
+
   const overlaps = existing.some((b) => {
-    const [bStartHour] = b.startTime.split(":").map(Number)
-    const [bEndHour] = b.endTime.split(":").map(Number)
-    const bSpansMidnight = bEndHour <= bStartHour
+    const [bStart] = b.startTime.split(":").map(Number)
+    const [bEnd] = b.endTime.split(":").map(Number)
+    const bEffectiveEnd = bEnd <= bStart ? bEnd + 24 : bEnd
 
-    const bookingEndHour = bookingSpansMidnight ? endHour + 24 : endHour
-    const effectiveStartHour = startHour
-    const effectiveEndHour = bookingEndHour
-
-    const bEffectiveEndHour = bSpansMidnight ? bEndHour + 24 : bEndHour
-    const bEffectiveStartHour = bStartHour
-
-    // Compare time windows relative to the start date
-    // A booking from next day (no midnight span) occupies hours 24..48
-    // A booking from start date that spans midnight occupies up to hour 48
-    const bStartsNextDay = bEffectiveStartHour < 24 && !bSpansMidnight
-    const bShift = bStartsNextDay ? 24 : 0
-
-    const s1 = effectiveStartHour
-    const e1 = effectiveEndHour
-    const s2 = bStartHour + bShift
-    const e2 = bEffectiveEndHour + bShift
-
-    return s1 < e2 && e1 > s2
+    // Check overlap in the standard frame (both times as-is)
+    const standardOverlap = startHour < bEffectiveEnd && effectiveEnd > bStart
+    // Also check with new booking shifted +24 (covers case where new booking is post-midnight
+    // relative to an existing midnight-spanning booking, e.g. existing 23:00-01:00 vs new 00:00-01:00)
+    const shiftedOverlap = (startHour + 24) < bEffectiveEnd && (effectiveEnd + 24) > bStart
+    return standardOverlap || shiftedOverlap
   })
 
   if (overlaps) {
@@ -101,6 +90,11 @@ async function createBookingWithPayment(
   const priced = await priceBooking(data)
   await assertSlotAvailable(tx, data)
 
+  const paymentDeadline =
+    (data.status ?? "pending") === "pending"
+      ? new Date(Date.now() + 15 * 60 * 1000)
+      : null
+
   const booking = await tx.booking.create({
     data: {
       referenceNumber: generateReferenceNumber(),
@@ -113,6 +107,7 @@ async function createBookingWithPayment(
       totalAmount: priced.totalAmount,
       priceBreakdown: priced.priceBreakdown,
       status: data.status ?? "pending",
+      paymentDeadline,
     },
   })
 
@@ -191,6 +186,30 @@ export async function createMultipleBookings(
   return createdBookings
 }
 
+export async function expireOverdueBookings() {
+  await requireUser()
+
+  const now = new Date()
+  const expired = await prisma.booking.findMany({
+    where: {
+      status: "pending",
+      paymentDeadline: { lte: now },
+      payments: { every: { screenshotUrl: null } },
+    },
+    select: { id: true },
+  })
+
+  if (expired.length > 0) {
+    await prisma.booking.updateMany({
+      where: { id: { in: expired.map((b) => b.id) } },
+      data: { status: "cancelled" },
+    })
+    revalidatePath("/my-bookings")
+  }
+
+  return expired.length
+}
+
 export async function cancelBooking(bookingId: string) {
   await requireStaff()
 
@@ -228,7 +247,10 @@ export async function getMyBookings() {
     orderBy: { createdAt: "desc" },
   })
 
-  return bookings
+  return bookings.map((b) => ({
+    ...b,
+    paymentDeadline: b.paymentDeadline ?? null,
+  }))
 }
 
 export async function getAllBookings(page = 1, pageSize = 20) {
@@ -291,10 +313,15 @@ export async function getBookingsByDateRange(startDate: Date, endDate: Date) {
 }
 
 export async function getAvailableSlots(courtId: string, date: Date) {
+  const dayStart = new Date(date)
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(date)
+  dayEnd.setHours(23, 59, 59, 999)
+
   const bookings = await prisma.booking.findMany({
     where: {
       courtId,
-      date,
+      date: { gte: dayStart, lte: dayEnd },
       status: { not: "cancelled" },
     },
     select: {

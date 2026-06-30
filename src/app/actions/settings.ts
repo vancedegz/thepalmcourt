@@ -20,6 +20,7 @@ export async function updateBusinessSettings(data: {
   address: string
   openingTime: string
   closingTime: string
+  timezone: string
   defaultPricePerHour: number
   bookingRules?: string
   paymentInstructions?: string
@@ -134,15 +135,15 @@ export async function calculatePrice(startTime: string, endTime: string, date: D
   // Parse times
   const [startHour] = startTime.split(":").map(Number)
   const [endHour] = endTime.split(":").map(Number)
-  
-  // Support overnight hours (e.g. 23:00 – 02:00)
-  const hourCount = endHour <= startHour ? (24 - startHour) + endHour : endHour - startHour
+  const effectiveEndHour = endHour <= startHour ? endHour + 24 : endHour
+  const hourCount = effectiveEndHour - startHour
   
   const priceBreakdown = []
   let totalAmount = 0
 
   for (let i = 0; i < hourCount; i++) {
-    const hour = (startHour + i) % 24
+    const rawHour = startHour + i
+    const hour = rawHour % 24
     const hourStr = `${hour.toString().padStart(2, "0")}:00`
     
     // Find matching tier
