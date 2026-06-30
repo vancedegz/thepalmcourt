@@ -72,6 +72,8 @@ jobs:
             rm -rf .next-bak-* 2>/dev/null || true
             # --- Install all deps (including devDeps for build) ---
             npm install
+            # --- Generate Prisma client against the deployed schema ---
+            npx prisma generate
             # --- Build on server so Prisma client matches ---
             DATABASE_URL="${{ secrets.DATABASE_URL }}" AUTH_SECRET="${{ secrets.VM_NEXTAUTH_SECRET }}" npm run build
             # --- Migrate DB ---
