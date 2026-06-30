@@ -328,13 +328,13 @@ export default function MyBookingsPage() {
                                             {businessSettings.paymentInstructions && (
                                               <div>
                                                 <p className="font-semibold text-amber-900 mb-0.5">Payment Instructions</p>
-                                                <p className="text-amber-800 whitespace-pre-line">{businessSettings.paymentInstructions}</p>
+                                                <p className="text-amber-800 whitespace-pre-line break-words">{businessSettings.paymentInstructions}</p>
                                               </div>
                                             )}
                                             {businessSettings.bankDetails && (
                                               <div>
                                                 <p className="font-semibold text-amber-900 mb-0.5">Bank Details</p>
-                                                <p className="text-amber-800 whitespace-pre-line">{businessSettings.bankDetails}</p>
+                                                <p className="text-amber-800 whitespace-pre-line break-words">{businessSettings.bankDetails}</p>
                                               </div>
                                             )}
                                           </div>

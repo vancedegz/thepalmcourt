@@ -44,7 +44,7 @@ export default function CustomerLayout({
               </Link>
             </div>
             {/* Desktop nav */}
-            <div className="flex items-center space-x-1">
+            <div className="hidden md:flex items-center space-x-1">
               <Link href="/book">
                 <Button variant="ghost" className="text-white hover:text-[#4ade80]">Book Court</Button>
               </Link>

@@ -33,7 +33,7 @@ export default function PublicLayout({
               </Link>
             </div>
             {/* Desktop nav */}
-            <div className="flex items-center space-x-2">
+            <div className="hidden sm:flex items-center space-x-2">
               <Link href="/login">
                 <Button variant="ghost" className="text-white hover:text-[#4ade80]">Login</Button>
               </Link>

@@ -450,18 +450,24 @@ export default function BookPage() {
                 </div>
               ))}
 
-              {(businessSettings?.paymentInstructions || businessSettings?.bankDetails) && (
+              {(businessSettings?.bookingRules || businessSettings?.paymentInstructions || businessSettings?.bankDetails) && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2 text-sm">
+                  {businessSettings.bookingRules && (
+                    <div>
+                      <p className="font-semibold text-amber-900 mb-0.5">Booking Rules</p>
+                      <p className="text-amber-800 whitespace-pre-line break-words">{businessSettings.bookingRules}</p>
+                    </div>
+                  )}
                   {businessSettings.paymentInstructions && (
                     <div>
                       <p className="font-semibold text-amber-900 mb-0.5">Payment Instructions</p>
-                      <p className="text-amber-800 whitespace-pre-line">{businessSettings.paymentInstructions}</p>
+                      <p className="text-amber-800 whitespace-pre-line break-words">{businessSettings.paymentInstructions}</p>
                     </div>
                   )}
                   {businessSettings.bankDetails && (
                     <div>
                       <p className="font-semibold text-amber-900 mb-0.5">Bank Details</p>
-                      <p className="text-amber-800 whitespace-pre-line">{businessSettings.bankDetails}</p>
+                      <p className="text-amber-800 whitespace-pre-line break-words">{businessSettings.bankDetails}</p>
                     </div>
                   )}
                 </div>
